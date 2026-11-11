@@ -38,6 +38,8 @@
 - `.work/check.py` — 규칙 검사 도구(공통 규칙 5절 3번). 표준 라이브러리만 쓰고 테스트는 부르지 않는다. `--pr`은 PR 본문의 '읽은 파일'·'최신 흐름 갱신' 칸을 본다(공통 규칙 5절 4번) [공통]
 - `.github/pull_request_template.md` — PR 양식 [공통]
 - `.github/workflows/rules-check.yml` — CI. PR과 main 변경마다 규칙 검사(`check.py`)와 테스트(`uv sync --locked`·`uv run pytest`)를 따로 돌리고, PR(본문 고침 포함)에서는 `pr-check`(`check.py --pr`)도 돌린다 [공통]
+- `Team/README.md` — KE KOREA 개인 계약 에이전트 개선 사례, 팀용 선택 도입 후보와 AI 구현 요청문 [과제별]
+- `Presentation/README.md` — 개인 에이전트 기능의 팀 발표 참고 사례와 실제 구현 여부 구분 [과제별]
 - `docs/PROJECT_CONTEXT.md` — 최신 흐름(과제 개요, 영역별 현재 상태, 산출물 위치). 모든 작업 전에 읽는다 [과제별]
 - `docs/plans/README.md` — 계획 파일 형식(RULES 7절) [공통]
 - `docs/plans/` — 큰 작업의 계획 파일 `<작업명>.md`(RULES 7절) [과제별]
