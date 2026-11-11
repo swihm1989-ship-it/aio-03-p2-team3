@@ -111,7 +111,7 @@
 - 로그인(계획 6절): `GOOGLE_OAUTH_*`·`GMAIL_PUBSUB_TOPIC`·`TOKEN_ENCRYPTION_KEY`(Fernet 키)·`SESSION_SECRET`이 모두 있어야 로그인 버튼이 켜진다. 두 키는 `.env.example`의 명령으로 만들고, `TOKEN_ENCRYPTION_KEY`를 바꾸면 모두 다시 로그인해야 한다. `APP_BASE_URL`이 `https://`면 세션 쿠키를 HTTPS 전용으로 보낸다(Render).
 
 ## 8. 문서·산출물 위치
-마지막 갱신: 2026-11-09
+마지막 갱신: 2026-11-11
 
 | 무엇 | 위치 | 상태 |
 |---|---|---|
@@ -121,6 +121,8 @@
 | 시험 실행 기록(실행마다 한 파일) | `docs/test-records/` | 아직 없음 |
 | 큰 작업의 계획 파일 | `docs/plans/gmail-quote-mvp.md` (형식: `docs/plans/README.md`) | 있음(Gmail 견적 MVP 구현 계획) |
 | 발표 PPT | 미정 | 아직 없음 |
+| KE KOREA 개인 에이전트 개선 사례·선택 재구현 프롬프트 | `Team/README.md` | 참고 제안, 팀 미구현 |
+| 개인 에이전트 개선 사례 발표 참고 자료 | `Presentation/README.md` | 발표 참고, 팀 기능 도입과 별개 |
 
 - 위치는 Claude가 정한 처음 값이다. 팀이 바꾸면 이 표와 README를 함께 고친다. [Claude proposal]
 - 설계 결정·오류 사례·수정 이유·버전·재실행 결과는 Issue, PR('오류·재실행 기록' 칸), 팀 노션에도 남긴다.
