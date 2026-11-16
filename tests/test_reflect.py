@@ -14,8 +14,8 @@ from sqlalchemy import select
 from app.config import Settings
 from app.db.models import ReplyCandidate, RunEvent, User
 from app.graph.build import build_graph
-from app.graph.nodes import reflect as reflect_module
-from app.graph.nodes.reflect import detect, reflect
+from app.graph.master import review as reflect_module
+from app.graph.master.review import detect, reflect
 from app.graph.run import start_run
 from app.graph.state import initial_state
 from app.llm import client
@@ -23,7 +23,7 @@ from app.main import create_app
 from app.quote.calc import build_draft
 from app.quote.required_fields import get_required_fields
 from app.tools.fallback import NOTICE_MESSAGES
-from app.web.deps import current_user_id
+from app.auth.deps import current_user_id
 from tests.fakes.llm import FakeLLM, openai_error
 
 GENERAL = {"intent": "general", "reason": "일반 문의"}

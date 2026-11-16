@@ -69,11 +69,12 @@ def test_postgres_pi_api_and_concurrent_approval_without_shared_python_lock(data
     from app.trade.review.operations import decide, propose
     from app.trade.review.repository import SQLReviews
     from tests.test_pi_api import configured_client, create_pi, test_pi_http_end_to_end_approval_and_idempotent_download
+    from tests.test_pi_domain import pi_input
 
     with configured_client(database_url) as client:
         test_pi_http_end_to_end_approval_and_idempotent_download(client)
         database = client.app.state.database
-        document = create_pi(client)
+        document = create_pi(client, pi_input(document_number="PI-CONCURRENT").model_dump(mode="json"))
         first_repository = SQLReviews(database, 1, "PI", storage=client.app.state.storage)
         proposal = propose(document["document_id"], ReviewRequest(revision=1), repository=first_repository,
                            check_document=check_pi_for_review)
@@ -111,7 +112,7 @@ def test_postgres_pi_api_and_concurrent_approval_without_shared_python_lock(data
 
 
 def test_postgres_po_ci_pl_full_http_flows(database_url):
-    from app.web.deps import current_user_id
+    from app.auth.deps import current_user_id
     from tests.test_pi_api import configured_client
     from tests.test_trade_domain_api import test_each_domain_cancel_modify_approve_download_and_version_history
 

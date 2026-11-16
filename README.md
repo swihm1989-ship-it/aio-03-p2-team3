@@ -10,6 +10,8 @@
 
 자세한 것과 막힐 때(PR 링크가 없을 때, 충돌)는 `docs/CHATGPT_GUIDE.md` 4·5절.
 
+코드 위치를 찾을 때는 [팀원용 도메인 구조도와 이동표](docs/domain-layout.md)를 먼저 본다. `llm`은 AI 실행, `clients`는 Google 통신이며, 화면의 업무 처리는 `auth`·`mail`·`settings`·`quote`·`runlog`·`trade`에 둔다. `web`에는 현재 쓰는 HTML/정적 자산과 공개 페이지만 남겼다. React 받은메일·실행기록 및 같은 출처 배포가 아직 연결되지 않아 기존 HTML 화면은 함께 유지한다.
+
 - 공통 규칙: `.work/RULES.md` (이 레포가 관리)
 - 이 레포의 규칙과 파일 지도: `.work/TASK.md`
 - 진행기록: `.work/STATUS.md`
@@ -28,13 +30,15 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 
 uv sync                  # 패키지 설치(.venv 생성, uv.lock 기준)
 cp .env.example .env     # 값을 채운다. .env는 올리지 않는다
+npm ci --prefix frontend # 전체 시험의 React 빌드 준비(Node 22.16 이상)
+uv run playwright install chromium  # 브라우저 시험 준비(Linux는 --with-deps 추가)
 uv run pytest            # 테스트
 uv run uvicorn app.main:app --reload  # 로컬 서버
 ```
 
 - 기본 화면: `http://127.0.0.1:8000/`(`/inbox`로 이동). 상태 확인: `http://127.0.0.1:8000/healthz` → `{"status":"ok"}`. 화면·상태 확인에는 API 키가 필요 없다.
 - 위 Uvicorn 명령은 기본 `AI_RUNTIME=server`의 사용자별 DB 키 방식이다. 개인 `.env` 키를 쓰려면 아래 전용 로컬 실행 절차를 따른다.
-- Render 시작 명령: `uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
+- Render 빌드 명령: `bash scripts/render-build.sh`(아래 같은 출처 UI 배포 안내). 시작 명령: `uv run uvicorn app.main:app --host 0.0.0.0 --port $PORT`.
 - 현재는 계획 2절의 앱 뼈대에 6절의 Google 로그인·Gmail 감시 등록을 더한 상태다. 업무 노드·도구, 알림 처리·발송·후보 저장·화면 기능은 후속 작업에서 구현한다. 가짜 LLM 그래프 검증은 `uv run pytest tests/test_graph.py tests/test_llm.py`로 실행한다.
 - 로그인: 기본 화면의 'Gmail 연결하기' → `/login` → Google 로그인. `GOOGLE_OAUTH_*`·`TOKEN_ENCRYPTION_KEY`·`SESSION_SECRET`이 필요하며, 기본 서버 모드에서는 `GMAIL_PUBSUB_TOPIC`도 있어야 로그인 버튼이 켜진다(빠진 이름을 로그인 화면이 보여 줌, 키 만드는 명령은 `.env.example`). 로컬 모드는 아래 개인 OAuth 설정을 사용한다. 가짜 Google 응답 검증은 `uv run pytest tests/test_auth.py tests/test_local_gmail.py`로 실행한다.
 - Supabase 로그인 404: `SUPABASE_URL`은 `https://<project-id>.supabase.co` 형식의 프로젝트 API 주소다. `/dashboard/project/...` 관리 화면 주소를 넣지 않는다. `.env`를 고쳤는데 이전 주소가 계속 전달되면 개발 서버를 멈추고 터미널의 `SUPABASE_URL`·`SUPABASE_PUBLISHABLE_KEY`를 `unset`한 뒤 `npm run dev`로 다시 시작한다. 이미 실행 환경에 있는 값이 `.env`보다 우선한다([Vite 안내](https://vite.dev/guide/env-and-mode#env-loading-priorities)).
@@ -43,17 +47,45 @@ uv run uvicorn app.main:app --reload  # 로컬 서버
 - Storage 미참조 객체 목록·수동 정리(react-supabase 8절): `uv run python -m app.files.cleanup` — 버킷에 있지만 `file_assets`·`trade_artifacts`가 가리키지 않는 객체(업로드 성공 뒤 SQL 실패로 남은 것)를 목록화한다. `--older-than-hours <시간>`(기본 24)으로 대상을 줄이고 `--delete --yes`를 함께 줄 때만 지운다. 참조 중인 객체는 절대 지우지 않고 크론·자동 정리는 없다(사람이 확인 후 실행).
 - 회사 로고·직인 바이너리 backfill(react-supabase 9절): `uv run python -m app.trade.settings.backfill` — 기존 `company_branding`·`trade_proposals` 바이너리를 해시 대조하며 `file_assets`+Storage 객체로 옮긴다. 없이 실행하면 dry-run, `--yes`를 붙여 실행한다. 이미 파일 ID를 가진 행은 건너뛰고 같은 bytes는 기존 행을 재사용해 반복 실행이 안전하다. 대조 값과 해시가 다른 행은 옮기지 않고 보고한다.
 - 발급 파일 바이너리 backfill·검증(react-supabase 10절): `uv run python -m app.trade.review.backfill` — 기존 `trade_artifacts.content` 바이너리를 승인 절차와 같은 결정적 key(`{user_id}/issued/{proposal_id}/{format}/{sha256}`)로 Storage에 옮겨 `object_key`·`size_bytes`를 채운다. 없이 실행하면 dry-run, `--yes`를 붙여 실행하고 저장 뒤 bytes 해시 대조로 검증한다. 이미 `object_key`가 있는 행은 다시 옮기지 않고(재실행이 곧 검증 실행), bytes 해시가 기록과 다른 행·같은 key에 다른 bytes가 있는 행은 옮기지 않고 보고한다.
-- 테스트 DB 준비(별도 설치 불필요): 로컬 macOS·Linux는 개발 의존성 `pgserver`가 세션마다 임베디드 PostgreSQL을 띄우고(`uv run pytest`만 실행) 테스트별로 DB를 만들어 지운다. CI(GitHub Actions `tests` 작업)는 `postgres:16` service 컨테이너를 띄워 `TEST_DATABASE_URL`로 가리킨다. 로컬에서도 준비된 PostgreSQL에 `TEST_DATABASE_URL=postgres://… uv run pytest`로 연결할 수 있다. 단위 테스트는 `.env`의 실제 LLM 키가 스며들지 않게 키 환경을 비우고, LLM 응답은 각 테스트가 명시적으로 주입한 가짜만 쓴다.
+- 테스트 DB 준비: 로컬 macOS·Linux는 개발 의존성 `pgserver`가 임베디드 PostgreSQL/pgvector를 띄우고 테스트별 DB를 만들어 지운다. CI는 고정한 `pgvector/pgvector:0.8.7-pg16` 이미지와 `TEST_DATABASE_URL`을 사용한다. 직접 준비한 PostgreSQL에는 pgvector 설치가 필요하며 확장 누락을 모의 벡터나 skip으로 대신하지 않는다. 전체 시험에는 위 Chromium·Node 준비와 아래 LibreOffice 설치가 필요하다. 실제 LLM 키는 비우고 외부 AI·Storage는 가짜만 사용한다.
 - DB 엔진·세션 팩터리와 컴파일한 그래프를 재사용한다. LLM은 호출 시 해당 사용자의 현재 키로 구성하며 공용 클라이언트를 캐시하지 않는다. 실행 기록은 `runs`·`run_events` 표에 저장한다. 원문 대신 노드 이름·바뀐 필드·오류 종류·프롬프트 버전·소요 시간을 남긴다.
 - HTMX 2.0.8은 `app/web/static/js/htmx.min.js`에 포함했다([공식 배포 파일](https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js), 같은 폴더 `htmx.LICENSE`에 0BSD 라이선스). 실행 중 외부 CDN 요청은 없다. 색·글꼴·간격은 `app/web/static/css/tokens.css`에서 조정한다.
 - React 화면(react-supabase 계획 6절, 2026-11-13): `cd frontend && npm ci && npm run dev`로 Vite 개발 서버를 띄우고 `http://localhost:5174/app/`(슬래시 포함)로 접속한다. 포트는 루트 `.env`의 `FRONTEND_PORT`로 바꾸며 비우면 5174다. 예를 들어 `FRONTEND_PORT=3000`이면 `http://localhost:3000/app/`로 접속한다. 지정한 포트가 사용 중이면 다른 포트로 바꾸지 않고 종료한다. Supabase Redirect URLs도 실제 주소의 `/app/login`과 맞춘다. `/api` 요청은 `frontend/vite.config.js` 프록시가 로컬 FastAPI(`127.0.0.1:8000`)로 보낸다. Supabase 설정은 루트 `.env` 한 곳에 `SUPABASE_URL`·`SUPABASE_PUBLISHABLE_KEY`·`SUPABASE_SECRET_KEY`를 입력한다(틀: 루트 `.env.example`). Vite가 URL과 공개 키만 브라우저에 전달하고 서버 비밀 키는 제외한다. 버킷은 기본 `trade-files`이며 다른 이름일 때만 `SUPABASE_STORAGE_BUCKET`을 지정한다. 별도의 `frontend/.env`는 사용하지 않는다. 실제 Google 로그인은 계획 2절 콘솔 설정(비대칭 signing key·Google 공급자·redirect 허용)이 먼저다. 검사는 `frontend/`에서 `npm run lint`, `npm test`, `npm run build`. PI는 단계별 입력·원문 누락 보완·품목 표 편집 후 전체 확인으로 진행한다. 로그인·사이드바/하단탐색·인증 경계와 `/app/settings`의 회사/거래 기준 설정, `/app/trade/pi`의 PI 직접 입력/AI 추출/검토/승인/다운로드를 연결했다(계획 11·12절). 문서 ID가 포함된 주소로 재개할 수 있다. PO·CI·PL 등은 13절 이후 작업이다.
 - 패키지 추가: `uv add <패키지>==<버전>`(개발용은 `uv add --dev …`). 버전은 `pip index versions <패키지>`로 확인하고, 바뀐 `pyproject.toml`·`uv.lock`을 함께 PR에 올린다.
+
+### 지식 문서 업로드·비전 추출·pgvector 저장
+
+로그인 후 `/app/knowledge`에서 문서를 올린다. 원본은 기존 private Storage에, 문서·확정 원문·부모 조항·자식 벡터는 기존 PostgreSQL에 둔다. 비전 추출기는 모든 입력을 페이지 이미지로 읽고 임베딩 공급자와 독립적으로 주입한다. 초기에 사용자가 선택한 조합은 기존 사용자 OpenAI 키/현재 모델 + `text-embedding-3-small` 1536차원이다. 검색·LangGraph·메일 연결은 후속 범위다.
+
+- 형식/한도: PDF·DOCX·XLSX·UTF-8 TXT·PNG·JPEG, 파일 20MiB·변환 후 50페이지·이미지 2천만 픽셀·압축 해제/페이지 이미지 합계 100MiB·추출문 100만 자. 기존 `/api/files` 첨부 5MiB 정책은 유지한다. HWP는 PDF로 변환한다.
+- 실행 준비: PDF/이미지 렌더러는 고정한 `pypdfium2`와 기존 Pillow를 사용한다. DOCX/XLSX/TXT는 **LibreOffice**가 필요하다. macOS는 `brew install --cask libreoffice`, Ubuntu는 `sudo apt-get update && sudo apt-get install -y --no-install-recommends libreoffice-writer libreoffice-calc fonts-noto-cjk`로 준비하고, 필요하면 `KNOWLEDGE_OFFICE_COMMAND`에 실제 실행 파일 경로를 지정한다. 운영 Render의 설치·메모리/비용은 별도 확인 사항이며 이 PR에서 배포 방식을 바꾸거나 운영 설치를 실행하지 않는다. 미설치 문서는 실패 상태와 PDF 업로드 대안을 안내한다.
+- DB 준비: 기존 DB를 백업하고 설치된 PostgreSQL에 pgvector가 있는지 확인한다. 앱 시작은 vector 확장을 먼저 준비한 뒤 `20261113_knowledge_ingestion` 리비전을 적용한다. 기존 `extensions` 스키마의 vector 설치를 존중하며 새 설치는 `public`에 둔다. DB 접속 역할에 확장 설치/스키마 갱신 권한이 필요하다. 새 세 표는 RLS를 켜고 anon/authenticated 직접 접근을 차단하며 본인 Bearer API로만 접근한다.
+- 모델 설정: `KNOWLEDGE_VISION_MODEL`은 비우면 `OPENAI_MODEL`/기존 기본값, `KNOWLEDGE_EMBEDDING_MODEL`은 비우면 `text-embedding-3-small`, `KNOWLEDGE_EMBEDDING_DIMENSIONS`는 비우면 1536이다. 모델 권한/비전 입력 지원·실제 정확도는 본인 프로젝트에서 확인한다. 공급자 교체는 `DocumentExtractor`/`Embedder` 구현을 조립 지점에 주입하며 첫 실제 구현은 OpenAI 하나다. 임의 endpoint를 업로드 요청으로 받지 않는다.
+- 키: 기존 사용자 키/전용 로컬 소유자 정책을 재사용하고 서버 공용 키로 대체하지 않는다. `local_worker`는 이미지·임베딩 미지원으로 명시적으로 실패한다. 비전 요청은 `store=False`, SDK 자동 재시도는 0이다. 업로드한 페이지/텍스트가 선택한 OpenAI API로 전송되며 실제 과금/보관 정책은 본인 계정에서 확인한다.
+- 확인/복구: 의심 전사·누락 페이지·Office 변환은 `needs_review`에서 원본과 대조·수정/확정한 뒤 임베딩한다. 숨김 시트·수식 캐시 누락 등 읽지 못한 내용을 성공으로 표시하지 않는다. 수정문 저장과 확정은 구분하며 오래된 revision/시도는 409다. 재처리는 명시적으로 요청하고, 실패해도 이전 성공 인덱스는 보존한다. 처리 임대는 1시간이며 재시작 후 만료 작업은 자동 유료 재실행 없이 실패로 표시한다.
+- Parent-child: 조항 경계를 우선한 부모 원문(최대 8000자)과 1000자/겹침 150자의 자식을 연결한다. 크기는 문자 기준이며 최적 검색 성능을 주장하지 않는다. 자식만 임베딩하고 부모의 원본 페이지/원문 범위·처리 버전·모델 프로필을 보존한다. 모델/차원을 바꿔도 기존 벡터가 자동 변환되지는 않으며 본인 문서를 재처리해야 한다.
+- 검증: `uv run pytest tests/test_knowledge.py tests/test_knowledge_browser.py`는 실제 pgvector·페이지 렌더링·React/FastAPI와 가짜 AI/Storage로 시험한다. `npm ci --prefix frontend`, LibreOffice, `uv run playwright install chromium`을 먼저 준비한다. 외부 AI 호출/실제 문서 일괄 적재/운영 배포/검색 품질 평가는 수행하지 않는다. API·상태/오류·저장 불변식은 [계약 18절](docs/CONTRACT.md#18-지식-문서-수집과-벡터-저장)에 있다.
+
+### Render 같은 출처 UI 배포 — 계획 21.1 선행 작업
+
+`scripts/render-build.sh`는 레포 루트에서 `uv sync --locked`로 기존 Python 설치를 유지한 뒤, `frontend/`에서 `npm ci --include=dev` → `npm run build`를 실행하고 `dist/index.html` 생성을 확인한다. Vite 같은 개발 의존성은 `NODE_ENV=production`에서도 빌드에 필요하다. 어느 단계든 실패하면 빌드가 실패하며 서버 시작 단계로 넘어가지 않는다. UI 소스·Vite 설정·package/lockfile은 이 선행 작업에서 바꾸지 않는다.
+
+- 저장소의 `render.yaml`은 기존 Python 서비스에 적용할 빌드·시작·`/healthz` 설정을 선언한다. **Dashboard에서 만든 기존 서비스는 파일 추가만으로 Build Command가 바뀌지 않는다.** 해당 서비스 Settings → Build & Deploy에서 Build Command를 `bash scripts/render-build.sh`로 설정하고 기존 Start Command를 유지한다. 같은 서비스를 Blueprint로 관리하는 경우에만 선언 파일을 동기화한다.
+- Render Environment에 `NODE_VERSION=22.16.0`을 설정한다(Vite 8 요구 버전 충족). 공개 `SUPABASE_URL`·`SUPABASE_PUBLISHABLE_KEY`는 **빌드 시점**에 필요하다. 값이 바뀌면 프론트를 다시 빌드해야 하며 서버 재시작만으로 이미 생성된 JS는 바뀌지 않는다. 기존 Vite 설정이 두 공개값만 브라우저로 전달한다. 별도 `VITE_*`·`frontend/.env`는 만들지 않는다.
+- `SUPABASE_SECRET_KEY`·`DATABASE_URL`·`GOOGLE_OAUTH_CLIENT_SECRET`·`TOKEN_ENCRYPTION_KEY`·`SESSION_SECRET`·Pub/Sub 인증값은 기존 서버 환경으로 유지한다. 프론트 코드/공개 환경변수에 복사하지 않는다. 루트 `.env.example`과 계약 11절이 전체 설정 목록이며 실제 값은 커밋하지 않는다. 운영 DB 주소·암호화 키는 이 작업에서 교체하지 않는다.
+- 빌드 후 같은 FastAPI의 `/app/`로 접속한다. `/app`는 `/app/`로 이동하고, `/app/trade/pi/123` 같은 상세 주소의 GET/HEAD는 `index.html`로 복구된다. JS/CSS는 `/app/assets/`에서 올바른 형식으로 제공하며 누락 자산은 404다. HTML/자산은 `Cache-Control: no-cache`와 ETag/Last-Modified로 재검증한다. 빌드가 없는 개발 환경에서 UI 주소는 503이며 API·기존 화면은 계속 쓸 수 있다.
+- 기존 `/`→`/inbox`, `/api`와 없는 API의 JSON 404, `/auth/google/callback`, `/gmail/push`, `/docs`·`/healthz`·`/about`·`/privacy`·`/terms`·`/static`은 유지한다. Gmail callback 주소를 `/app/`로 옮기지 않는다. Supabase의 앱 로그인 반환 허용 주소는 같은 출처의 `/app/login`이며 Google 공급자 callback 설정과 별개다.
+
+완료 확인: 빌드 로그의 Python 설치·`npm ci`·`npm run build` 성공과 `frontend/dist/index.html`, `/app/`·상세 주소 직접 열기/새로고침·JS/CSS 200/조건부 304, 누락 자산/API 404, 미인증 API 응답, Google callback의 기존 state 검사·리디렉션, Gmail 알림의 403/400/인증된 204, 공개 페이지/health 응답을 확인한다. 자동 검사는 `uv run pytest tests/test_frontend_serving.py`와 `frontend/`의 lint/test/`check:env`다. `check:env`는 가짜 값으로 공개 두 값 전달과 서버 비밀값 제외를 검사한다.
+
+이 단계는 UI 개발과 병행하는 빌드/제공 준비다. 실제 Render 설정 적용·배포 커밋·실제 로그인/Gmail 성공은 아직 미확인이다. 전체 화면/API 연결·모바일/키보드·오류 시나리오는 20절 뒤 21.2절(#149), 실제 DB/Storage 이전과 운영 전환은 사람의 22절(#150)에 남긴다.
 
 ## 산출물 위치
 
 | 무엇 | 위치 | 상태 |
 |---|---|---|
 | 에이전트 아키텍처 설계서 | `docs/ARCHITECTURE.md` | 아직 없음(11/13 초안) |
+| 팀원용 도메인 구조도·파일 이동표 | `docs/domain-layout.md` | 있음(LLM/Google 구분, web 정리와 기존 화면 유지 조건) |
 | 에이전트 시험 결과 보고서 | `docs/TEST_REPORT.md` | 아직 없음 |
 | 시험 실행 기록(실행마다 한 파일) | `docs/test-records/` | 아직 없음 |
 | 큰 작업의 계획 파일 | `docs/plans/` | 형식만 있음 |

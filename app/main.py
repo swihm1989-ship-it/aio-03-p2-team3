@@ -13,6 +13,8 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.auth import gmail as gmail_connection
 from app.auth import router as supabase_me
+from app.auth import session as session_routes
+from app.auth.deps import LoginRequired
 from app.auth.gmail import GmailConnectionError
 from app.auth.supabase import BearerAuthError, TokenVerifier
 from app.clients.gmail import GoogleClient
@@ -21,9 +23,17 @@ from app.db.engine import get_database
 from app.files import router as files_routes
 from app.files.service import FileError
 from app.files.storage import StorageClient
+from app.knowledge import router as knowledge_routes
+from app.knowledge.repository import SqlRepository
+from app.knowledge.schemas import KnowledgeError
+from app.knowledge.worker import IngestionWorker
 from app.graph.run import get_graph
+from app.mail import candidates, inbox, push as gmail_push
+from app.quote import router as quotes
+from app.runlog import router as runs
 from app.services.auth import GoogleAccess, make_cipher
 from app.services.local_gmail import LocalGmailCollector
+from app.settings import router as settings_routes
 from app.trade.common.models import DocumentError
 from app.trade.common import api as trade_api
 from app.trade.pi import router as pi_routes
@@ -31,9 +41,7 @@ from app.trade.po import router as po_routes
 from app.trade.ci import router as ci_routes
 from app.trade.pl import router as pl_routes
 from app.trade.settings import router as trade_settings
-from app.web import WEB, templates
-from app.web.deps import LoginRequired
-from app.web.routes import auth, candidates, gmail_push, inbox, pages, quotes, runs, settings as settings_routes
+from app.web import WEB, frontend, pages, templates
 from app.worker import router as worker_routes, service as worker_service
 from app.worker.protocol import WorkerError
 
@@ -41,7 +49,8 @@ SESSION_MAX_AGE_SECONDS = 14 * 24 * 60 * 60
 
 
 def create_app(settings: Settings | None = None, google=None,
-               supabase_auth: TokenVerifier | None = None, storage=None) -> FastAPI:
+               supabase_auth: TokenVerifier | None = None, storage=None,
+               knowledge_adapters=None) -> FastAPI:
     """google: Google 호출 객체. 비우면 실제 `GoogleClient`, 테스트는 가짜를 넣는다.
     supabase_auth: Supabase 토큰 검증기. 비우면 SUPABASE_URL로 만들고, 그것도 없으면 Bearer 인증 불가(503).
     storage: Storage 호출 객체. 비우면 SUPABASE_URL·SUPABASE_SECRET_KEY로 만들고, 없으면 파일 API 503."""
@@ -76,6 +85,13 @@ def create_app(settings: Settings | None = None, google=None,
         )
         # 서버의 OPENAI_API_KEY는 사용하지 않는다. 사용자 키는 호출 시에만 읽는다.
         app.state.llm = None
+        app.state.knowledge_repository = SqlRepository(database)
+        ingestion = IngestionWorker(
+            app.state.knowledge_repository, app.state.storage,
+            knowledge_adapters or (lambda owner, profile: knowledge_routes.make_adapters(database, config, owner, profile)),
+        )
+        app.state.knowledge_worker = ingestion
+        ingestion_task = asyncio.create_task(ingestion.run()) if app.state.storage is not None else None
         app.state.google = google or GoogleClient(config)
         app.state.google_access = GoogleAccess(
             database, app.state.google, make_cipher(config), config.gmail_pubsub_topic,
@@ -101,6 +117,9 @@ def create_app(settings: Settings | None = None, google=None,
         try:
             yield
         finally:
+            if ingestion_task:
+                ingestion.stop.set()
+                await ingestion_task
             if worker_task:
                 worker_stop.set()
                 await worker_task  # 정리 스레드가 끝난 다음 DB를 닫는다.
@@ -124,9 +143,9 @@ def create_app(settings: Settings | None = None, google=None,
                            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
                            allow_headers=["Content-Type", "X-CSRF-Token", "Authorization"])
     app.mount("/static", StaticFiles(directory=WEB / "static"), name="static")
-    # 라우터 파일(app/web/routes/)은 request.app.state.templates(= app.web.templates)로 같은 템플릿을 쓴다.
+    # 도메인 라우터는 request.app.state.templates(= app.web.templates)로 화면 자산을 공유한다.
     app.state.templates = templates
-    app.include_router(auth.router)
+    app.include_router(session_routes.router)
     app.include_router(gmail_push.router)
     app.include_router(pages.router)
     app.include_router(quotes.router)
@@ -134,6 +153,7 @@ def create_app(settings: Settings | None = None, google=None,
     app.include_router(supabase_me.router)
     app.include_router(gmail_connection.router)
     app.include_router(files_routes.router)
+    app.include_router(knowledge_routes.router)
     app.include_router(worker_routes.router)
     app.include_router(trade_api.router)
     app.include_router(pi_routes.router)
@@ -163,6 +183,11 @@ def create_app(settings: Settings | None = None, google=None,
     @app.exception_handler(FileError)
     def file_error(request: Request, error: FileError):
         return JSONResponse({"error": {"code": error.code, "message": error.message}}, status_code=error.status_code)
+
+    @app.exception_handler(KnowledgeError)
+    def knowledge_error(request: Request, error: KnowledgeError):
+        return JSONResponse({"error": {"code": error.code, "message": error.message}}, status_code=error.status,
+                            headers={"Cache-Control": "private, no-store"})
     @app.exception_handler(WorkerError)
     def worker_error(request: Request, error: WorkerError):
         return JSONResponse({"error": {"code": error.code}}, status_code=error.status,
@@ -180,6 +205,7 @@ def create_app(settings: Settings | None = None, google=None,
     app.include_router(inbox.router)
     app.include_router(candidates.router)
     app.include_router(runs.router)
+    app.mount("/app", frontend.FrontendFiles(directory=frontend.DIST, check_dir=False), name="frontend")
     return app
 
 

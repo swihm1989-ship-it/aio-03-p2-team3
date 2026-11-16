@@ -7,6 +7,11 @@ import LoginPage from "./pages/LoginPage"
 import PlaceholderPage from "./pages/PlaceholderPage"
 import SettingsPage from "./pages/SettingsPage"
 import PIPage from "./pages/PIPage"
+import KnowledgePage from "./knowledge/KnowledgePage"
+import POPage from "./pages/POPage"
+import CIPage from "./pages/CIPage"
+import CIStandalonePage from "./pages/CIStandalonePage"
+import PLPage from "./pages/PLPage"
 
 // 인증 경계: /app 아래는 /api/me까지 확인된 로그인만 지난다.
 function RequireAuth() {
@@ -41,8 +46,17 @@ export default function App() {
               <Route path="documents" element={<PlaceholderPage sub="문서 작성과 발급 상태를 관리하세요." title="문서함" />} />
               <Route path="activity" element={<PlaceholderPage sub="처리 단계와 오류를 확인하는 작업 이력입니다." title="실행 기록" />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="knowledge" element={<KnowledgePage />} />
               <Route path="trade/pi" element={<PIPage />} />
               <Route path="trade/pi/:documentId" element={<PIPage />} />
+              <Route path="trade/po" element={<POPage />} />
+              <Route path="trade/po/:documentId" element={<POPage />} />
+              <Route path="trade/ci" element={<CIPage />} />
+              <Route path="trade/ci/standalone" element={<CIStandalonePage />} />
+              <Route path="trade/ci/standalone/:documentId" element={<CIStandalonePage />} />
+              <Route path="trade/ci/:documentId" element={<CIPage />} />
+              <Route path="trade/pl" element={<PLPage />} />
+              <Route path="trade/pl/:documentId" element={<PLPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Route>
