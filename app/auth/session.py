@@ -11,6 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 
 from app.auth import gmail as gmail_connection
+from app.auth import calendar as calendar_connection
 from app.clients.gmail import GoogleError, missing_scopes
 from app.db.models import GmailWatch, User
 from app.services.auth import has_refresh_token, missing_login_settings, save_login, stored_scopes
@@ -70,10 +71,6 @@ def connection_status(request: Request, user: User) -> dict:
         watch = session.get(GmailWatch, user.id)
         status = watch.status if watch else "stopped"
         code = (watch.last_error or "").split(":", 1)[0] if watch and status == "error" else ""
-    if request.app.state.google_access.local_mode:
-        owner = request.app.state.settings.local_owner_google_sub.strip()
-        if not owner or user.google_sub != owner or user.last_login_at is None:
-            return {"label": "로컬 수집 대기", "notice": "설정에서 본인 Google 식별자를 확인하고 .env의 소유자 설정으로 다시 시작해 주세요.", "relogin": False}
     return {
         "label": (LOCAL_LABELS if request.app.state.google_access.local_mode else WATCH_LABELS).get(status, status),
         "notice": CONNECTION_NOTICES.get(code),
@@ -114,6 +111,8 @@ def google_callback(
     request: Request, code: str | None = None, state: str | None = None, error: str | None = None,
 ):
     pending = request.session.pop("oauth", None)
+    if isinstance(pending, dict) and pending.get("service") == "calendar":
+        return calendar_connection.complete_callback(request, pending, state, code, error)
     if isinstance(pending, dict) and "user_id" in pending:
         # 계획 7절: Bearer 연결 시작(/api/gmail/connect)이 만든 대기 값이다.
         return gmail_connection.complete_callback(request, pending, state, code, error)

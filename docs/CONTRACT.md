@@ -473,12 +473,12 @@ class AgentError(TypedDict):
 | `AI_RUNTIME=server`(기본, 빈 값 포함) | 기존 앱 실행·Render | 현재 사용자의 `user_openai_keys`만 조회. 어떤 사용자 키 오류에도 환경 키 대체 금지 |
 | `AI_RUNTIME=local` | `uv run python -m app.local [--port 8000]` | `.env`의 `OPENAI_API_KEY`만 사용. DB 사용자 키 조회·저장·교체·삭제 금지 |
 
-- 로더는 `local`일 때만 `OPENAI_API_KEY`를 Settings에 읽는다. 키·소유자 식별자는 Settings의 repr에서 제외한다. `.env` 변경은 재시작 후 적용한다. `local`과 서버 등록 키 사이의 자동 전환은 없다.
+- 로더는 `local`일 때만 `OPENAI_API_KEY`를 Settings에 읽는다. 키는 Settings의 repr에서 제외한다. `.env` 변경은 재시작 후 적용한다. `local`과 서버 등록 키 사이의 자동 전환은 없다.
 - 로컬 실행기는 `127.0.0.1`에 실제 소켓을 열고 검증한 소켓 자체를 Uvicorn에 전달한다. 공개 바인딩·리로드·다중 워커 옵션은 제공하지 않는다. 앱 생성과 키 조회 시 현재 실행 범위의 살아 있는 루프백 리스너를 확인한다. 일반 `uvicorn app.main:app` 실행에서는 `local` 설정을 거부한다. `RENDER`·`RENDER_SERVICE_ID`·`RENDER_EXTERNAL_URL`·`PORT` 중 값이 있는 공용 환경에서도 시작을 거부한다. Host·`APP_BASE_URL`은 실행 허가의 근거가 아니며, 허가 후에도 로컬 Host만 허용한다.
-- `LOCAL_OWNER_GOOGLE_SUB`는 본인이 명시한다. 기존 Google OAuth의 서명·발급자·대상 검증을 통과해 저장된 `User.google_sub`와 `last_login_at`을 사용하며, 로그인 사용자 또는 백그라운드 실행의 사용자 행이 지정 식별자와 일치해야 한다. 이메일·요청 user_id·최초 방문자를 소유자 판정에 사용하지 않는다.
-- 최초 설정: 소유자/키가 비어 있어도 전용 로컬 앱과 로그인 화면은 열 수 있다. Google 로그인 후 본인 `/settings`에 표시된 **현재 로그인으로 검증된 본인 Google 식별자**를 확인해 로컬 `.env`의 `LOCAL_OWNER_GOOGLE_SUB`에 직접 지정하고 `OPENAI_API_KEY`를 채운 뒤 재시작한다. 식별자는 인증된 본인 설정 화면에만 표시하며 응답은 `private, no-store`다. 서버에서도 개인 PC 연결 대상 확인을 위해 본인 설정에서만 제공한다(6.2절). 실제 계정·키를 채팅·레포에 옮기지 않는다.
+- 로컬 AI 키 조회는 전용 실행 검증과 비어 있지 않은 `OPENAI_API_KEY`만 요구한다. Google 식별자·Gmail 연결·last_login_at과 독립적이다. 앱 인증과 자료 소유권은 검증된 내부 user_id로 검사한다. 여러 로컬 사용자의 작업도 이 PC의 키를 사용하며 데이터는 user_id별로 분리한다.
+- `LOCAL_OWNER_GOOGLE_SUB`는 개인 PC 실행기의 명시적 --env 파일과 LocalPolicy에서만 사용한다. 앱 공통 Settings·로컬 키·Gmail 대상 선정은 읽지 않는다. 개인 PC 실행기의 서비스·소유자·장치 정책(6.2절)은 유지한다.
 - 로컬 설정 화면은 `.env` 키 사용 가능/불가와 안전한 차단 이유만 표시하며 키 원문·해시·앞뒤 문자열·DB 키 등록 폼은 제공하지 않는다. 등록/삭제 POST를 직접 호출해도 `LOCAL_KEY_ENV_ONLY`(409)로 거부한다. 저장된 DB 사용자 키가 있어도 읽지 않는다.
-- 로컬 오류: `LOCAL_OWNER_REQUIRED`(409), `LOCAL_OWNER_MISMATCH`(403, 검증 로그인 없음/다른 사용자/없는 사용자 포함), `LOCAL_KEY_REQUIRED`(409), `LOCAL_RUNTIME_REQUIRED`(409). 문서 API는 해당 코드를 반환한다. 메일은 기존 `openai_key_required` 안내로 실패 종료한다. 키는 AgentState·세션·실행 기록에 넣지 않으며 노드·엣지는 유지한다.
+- 로컬 키 오류는 `LOCAL_KEY_REQUIRED`(409)·`LOCAL_RUNTIME_REQUIRED`(409)다. 문서 API는 해당 코드를 반환한다. 메일은 기존 `openai_key_required` 안내로 실패 종료한다. 키는 AgentState·세션·실행 기록에 넣지 않으며 노드·엣지는 유지한다.
 - 개인 PC Gmail 연결·수집은 계획 2절에서 구현했다(7·9·10절). 서버 장치 연결·작업 큐는 3절에서 구현했다. 개인 실행 프로그램과 기존 AI 호출의 큐 연결도 4절에서 구현했다. 공용 Gmail 감시·Pub/Sub 설정은 유지한다.
 
 ### 6.2 서버의 사용자별 실행 방식 (3·4절 구현)
@@ -581,6 +581,8 @@ class AgentError(TypedDict):
 - 로컬 수집(계획 local-openai-execution 2절): 같은 `gmail_watches` 표를 개인 DB에서 사용하며 `topic="local:history"`는 로컬 표시자이지 Pub/Sub 토픽이 아니다. 명시적 로그인 때 `users.getProfile`의 현재 historyId로 시작하고 `expiration=NULL`, `last_renewed_at`은 연결 시각(세대)을 기록한다. `active`는 수집 가능, `stopped`는 로그아웃/동의 취소, `error`는 `token_expired`·`history_expired`(재로그인 전 중단) 또는 `local_connect: <안전 코드>`·`local_poll: <안전 코드>`(다음 주기 재시도)다. 모든 페이지/메일 조회 성공 뒤에만 커서를 갱신하고 중지·다른 연결 세대의 늦은 결과는 적용하지 않는다. 스키마는 추가하지 않는다.
 - 처리 상태와 화면 표시: `processing` 처리 중 · `awaiting_approval` 승인 대기 · `sent` 보냄 · `error` 오류(`notice=rate_limit`이면 '한도 초과' 표시) · `ignored`는 목록에 보이지 않는다. [Request · Claude proposal]
 
+- Calendar OAuth(#192, `20261116_calendar_oauth`): `calendar_tokens`는 `user_id` PK/FK·`google_sub`·Fernet 암호화 access/refresh token·UTC `expires_at`·실제 `scopes`·`updated_at`를 별도 저장한다. 기존 `google_tokens`는 Gmail 전용으로 유지한다. `calendar_oauth_attempts`는 state SHA-256 PK·사용자 FK·기대 Google subject·암호화 PKCE verifier·만료·재동의 여부·원자적 소비 여부를 보관한다. 10분·한 번만 코드 교환하며 다음 연결/해제 때 대기 행을 지운다. 소비된 쿠키 복원도 재교환하지 못하고 처리 도중 해제/새 연결되면 최종 저장을 거부한다. 새 표는 RLS 활성화·PUBLIC/anon/authenticated 권한 제거로 서버만 접근한다. 기존 사용자·Gmail 토큰은 복사/변경하지 않는다.
+
 ### 7.1. Supabase 전환 DB 목표 (2026-11-12, 계획 1절 확정)
 
 - 아래는 전환 계약이다. 3절(테스트 PostgreSQL)·4절(PostgreSQL 전용 설정·이전 도구)·5절(Supabase 인증·사용자 매핑)·8절(Storage 첨부 API)·9절(회사 이미지 Storage 전환)을 적용했고(2026-11-12), 10절은 [목표]로 남는다. 구현은 `docs/plans/react-supabase/PLAN.md` 순서대로 진행하며 각 PR에서 이 절과 코드를 함께 고친다. [Request · Claude proposal]
@@ -655,7 +657,7 @@ class AgentError(TypedDict):
   - 11 구현: 스레드의 견적 후보에서 확인 화면으로 연결한다. `needs_price`는 빠진 단가 입력 폼만 열며 승인 요청도 거부한다. `/prices`는 `price_<행 번호>`로 빠진 단가 전부를 받고 기존 단가는 바꾸지 않는다. 미리보기·승인 첨부는 같은 PDF 함수를 사용한다. 승인 결과는 일반 후보와 같은 `ApprovalResult.outcome` 안내 키(`needs_price` 추가)로 303 이동해 표시한다.
   - 설정(11): `/settings/company`는 `company_name`·`business_no`·`ceo_name`·`contact`, `/settings/prices`는 `item_name`·`unit`·`unit_price`를 받고 본인 행만 저장한다. 같은 품목명 저장은 단가·단위 갱신이다. 성찰 설정은 12가 구현한다.
 - 로그인 화면에 '테스트용 Gmail로 등록하세요'를 안내한다. [Request]
-- 로컬 모드 로그인은 `GMAIL_PUBSUB_TOPIC` 없이 허용하며 개인 PC에서 새 메일만 조회한다는 안내를 보인다. 연결 상태는 `로컬 새 메일 수집 켜짐`·`로컬 수집 확인 필요`·`로컬 수집 꺼짐`이며 본인 소유자 미지정/불일치면 `로컬 수집 대기`다. `history_expired`는 다시 로그인하면 현재 위치로 재설정되고 이전 메일을 자동 처리하지 않는다고 안내한다. 수집은 화면 요청과 독립적이며 받은 메일 목록의 기존 90초 갱신은 유지한다.
+- 로컬 모드 로그인은 `GMAIL_PUBSUB_TOPIC` 없이 허용하며 개인 PC에서 새 메일만 조회한다는 안내를 보인다. 연결 상태는 `로컬 새 메일 수집 켜짐`·`로컬 수집 확인 필요`·`로컬 수집 꺼짐`이며 사용자별 연결·감시 상태로 표시한다. Google 소유자 환경 설정은 확인하지 않는다. `history_expired`는 다시 로그인하면 현재 위치로 재설정되고 이전 메일을 자동 처리하지 않는다고 안내한다. 수집은 화면 요청과 독립적이며 받은 메일 목록의 기존 90초 갱신은 유지한다.
 - 본인 확인: 로그인(6)이 세션(`SESSION_SECRET`으로 서명한 쿠키 `gq_session`, 14일)에 `user_id`만 넣는다. 로그인이 필요한 경로는 둘 중 하나를 `Depends`로 받고, 로그인 안 했으면 둘 다 `/login`으로 보낸다(303). ① `app/auth/deps.py`의 `current_user_id`: id만 필요할 때(14가 씀). ② `app/auth/session.py`의 `require_user`(없으면 `/login`, HTMX면 `HX-Redirect`)·`current_user`(없으면 None): `User` 행이 필요하거나 화면 요청 때 감시 갱신까지 걸 때(응답 뒤, 받은 메일 화면이 씀). id로 행 하나를 열 때는 `app/services/auth.py`의 `get_owned(session, 표, id, user_id)`가 None이면 404로 답한다. 연결 상태 안내는 `connection_status()`. 라우터는 `request.app.state.templates`(`app.web`의 `templates`와 같은 객체)·`request.app.state.database`를 쓴다. [Claude proposal]
 
 ### 9.1. React·Supabase 전환 인증 목표 (2026-11-12, 계획 1절 확정)
@@ -669,6 +671,9 @@ class AgentError(TypedDict):
 | React JSON API: `GET /api/me`, `/api/gmail/*`(연결·해제·로그아웃), `/api/files*`(16.3절), 계획 5~8절이 Bearer로 연결하는 무역·설정·메일·실행 기록 API | `Authorization: Bearer`만. 쿠키를 보내지 않아도 동작해야 한다 | [적용 2026-11-12, 계획 5·7절] `/api/me`·`/api/gmail/*`·`/api/trade/*`(문서·설정)는 `Authorization` 헤더가 있으면 Bearer만 검증하고(쿠키 우회 금지, Bearer 변경 요청은 CSRF 토큰 불필요) 헤더가 없으면 legacy 쿠키+CSRF를 그대로 쓴다. CORS의 `Authorization` 헤더를 허용했다. `/api/files*`는 Bearer 전용으로 구현했다(계획 8절, 2026-11-12 — 쿠키 경로 없음). 메일·실행 기록 Bearer 연결은 계획 19·20절 |
 
 - Gmail 연결 API(적용 2026-11-12, 계획 7절, `app/auth/gmail.py`): 앱 로그인(legacy 로그인)과 흐름을 분리한 Bearer 전용 경로다. `POST /api/gmail/connect`가 state·PKCE 검증값·연결할 내부 사용자·기대 Google subject를 서명된 세션 쿠키(`gq_session`, 10분·일회용)에 담아 Google 동의 화면 주소를 JSON으로 돌려주면, `GET /auth/google/callback`이 대기 값의 내부 사용자가 있을 때만 이 흐름으로 완성해 React 앱(`/app/settings?gmail=<결과>`)으로 안내한다. 결과 키: `connected`·`cancelled`·`login_failed`·`scope_missing`·`config_missing`·`expired`·`different_account`·`account_conflict`. 대기 값에 내부 사용자가 없으면 기존 legacy 로그인 콜백 그대로다(같은 redirect URI를 공유한다). 연결은 기존 `store_login`(토큰 암호화 저장)·`register_watch`(감시 등록)·`get_access_token`(갱신)을 그대로 재사용하고, `POST /api/gmail/logout`은 앱 로그아웃 때 감시만 멈추며, `POST /api/gmail/disconnect`는 Google 토큰 폐기(`GoogleClient.revoke`)까지 하는 연결 해제다(해제 후에도 `google_sub`는 남겨 같은 계정만 다시 연결한다). `GET /api/me`의 `gmail` 객체가 연결 상태이며, 그 요청 뒤 감시 갱신(`renew_watch_if_due`)을 건다(legacy HTML 방문뿐 아니라 알림 수신·API 경로에서도 갱신).
+- Calendar 연결(#192): Bearer 전용 `POST /api/calendar/connect` → `{authorization_url}`·`POST /api/calendar/disconnect` → `{connected:false}`. 같은 `/auth/google/callback`에서 쿠키의 `service=calendar`를 먼저 분기한다. DB의 일회성 state·PKCE·10분 만료·Supabase 공급자 subject 일치·필수 범위·갱신 토큰·캘린더 목록 접근을 확인한 뒤만 암호화 저장한다. 다른 사용자/legacy 행과 충돌하면 `account_conflict`로 거부하며 자료를 자동 병합하지 않는다. 갱신 토큰 누락은 같은 사용자/서비스에 한 번만 `prompt=consent`로 재요청한다. 결과는 `/app/settings?calendar=<결과>`로 안내하며 Gmail/legacy callback은 유지한다. Calendar 결과 키는 Gmail과 같은 실패 키 외에 `refresh_missing`·`token_expired`·`api_disabled`·`google_unavailable`이 있다.
+- `/api/me.calendar`는 보통 `{connected:boolean}`이다. 매번 목록 조회로 권한을 확인하며 만료 60초 전부터 Calendar 갱신 토큰만 사용한다. 취소/만료·권한 부족이면 Calendar 토큰을 지우고 false, API 비활성화/통신·쿼터 장애면 토큰을 보존하고 `{connected:false,error:api_disabled|google_unavailable|config_missing}`로 표시한다. `error`는 선택적 상태 조회 실패 코드이며 Gmail 연결/감시를 덮어쓰지 않는다. 연결 여부를 URL 결과로 추측하지 않는다. Google 토큰·캘린더 목록/원문은 브라우저로 반환하지 않는다.
+- 서비스별 해제: Calendar는 저장 토큰/대기 연결만 삭제하고 Google revoke를 호출하지 않는다. Gmail의 기존 revoke 의미는 유지하며 해제 후 Calendar도 공급자로 재검증한다. Google 전체 grant 철회는 양쪽 토큰을 무효화할 수 있으므로 두 카드에 재연결 가능성을 안내한다. Gmail 감시 중지/로그아웃은 Calendar 토큰을 삭제하지 않는다. 앱 로그인·두 서비스 동의는 별개다.
 - 계정 연결 규칙(적용 2026-11-12, 계획 7절): 연결 시작 때 서버가 `SUPABASE_SECRET_KEY`로 Supabase Auth의 사용자 조회(admin)를 불러 공급자 identity의 Google subject를 구한다(사용자가 고칠 수 있는 `user_metadata`는 근거로 안 씀). 콜백의 Google subject가 이 값이나 이미 연결된 `google_sub`와 다르면 `different_account`, 같은 Google 계정의 기존 행이 이미 다른 Supabase 로그인에 연결됐거나 확인 근거가 없으면 `account_conflict`로 거부한다. 확인 근거가 있을 때만 기존 정수 ID(자료)를 보존해 연결한다(빈 껍데기 사용자 행 삭제, 양쪽에 자료가 있으면 외래 키가 삭제를 막아 `account_conflict`). 서버 비밀 키가 없으면 연결 시작이 503 `auth_not_configured`, 계정 조회 장애는 503 `auth_unavailable`, Google 로그인 설정 누락은 503 `config_missing`이다.
 
 - `GET /api/me`(Bearer 전용, 적용 2026-11-12): 인증 상태·내부 `user_id`·프로필(표시 이름·이메일)·Gmail 연결 상태(`gmail.connected`·`gmail.watch`)를 하나의 JSON으로 돌려준다. React 로그인·새로고침 복구가 이 경로부터 시작한다. 토큰이 없거나 검증에 실패하면 401.
@@ -682,6 +687,8 @@ class AgentError(TypedDict):
 - 만료·실패: 401이면 화면은 로그인 복구를 안내한다. 유효한 access token의 남은 수명 동안 로그아웃 즉시 폐기가 보장되는 것은 아니다(안내 문구에 명시).
 
 ## 10. Google
+
+- Calendar 전용 `app/clients/calendar.py`의 `CalendarClient`는 기존 Google 코드 교환/ID 토큰 검증/PKCE/갱신을 재사용하고 요청 범위만 `openid`·`email`·`calendar.readonly`로 분리한다(`include_granted_scopes=false`). `check_calendars()`는 Calendar API `calendarList.list(maxResults=1, fields=items(id))` 성공만 확인하고 목록·일정 원문을 저장/노출하지 않는다. 401·403·API 비활성화·쿼터/5xx·통신 오류는 허용된 짧은 코드로만 분류한다(15초 timeout). `app.state.calendar_access`에 독립 주입하며 실제 시험에는 `create_app(calendar=가짜)`를 사용한다. 일정 포트·그래프·도구와는 연결하지 않는다.
 - OAuth 범위는 `app/config.py`의 `GOOGLE_SCOPES` 한 곳에서만 읽는다. 후보: `openid`, `email`, `https://www.googleapis.com/auth/gmail.readonly`, `https://www.googleapis.com/auth/gmail.send`. 이 범위로 감시 등록·기록 조회·메일 읽기·발송이 되는지와 민감·제한 범위 구분은 5에서 공식 문서로 확인하고, 다르면 5의 결과대로 이 줄과 코드를 고친다. [Request]
 - 동의 요청은 `access_type=offline`(갱신 토큰), `include_granted_scopes=true`로 한다. 나중에 캘린더 범위(`register_calendar_event` 도구)를 더하면 기존 사용자는 다시 동의해야 한다: 로그인 때 저장된 `scopes`에 `GOOGLE_SCOPES`가 다 없으면 `prompt=consent`로 다시 동의를 받는다. [Request · Claude proposal]
 - 알림 수신 경로: `POST /gmail/push`. 요청을 확인한 뒤 본문의 `emailAddress`·`historyId`만 읽고 바로 204로 응답한다. 처리는 백그라운드에서 한다. [Request]
@@ -692,20 +699,21 @@ class AgentError(TypedDict):
 - 감시 등록 토픽은 `GMAIL_PUBSUB_TOPIC`(`projects/<프로젝트>/topics/<토픽>`). [Request]
 - Google 호출(6): 실제 호출은 `app/clients/gmail.py`의 `GoogleClient` 하나(로그인 주소·코드 교환(PKCE)·토큰 갱신·`gmail(접근 토큰)`·`watch`·`stop`)이고 서버가 뜰 때 `app.state.google`, 준비물 묶음은 `app.state.google_access`(`GoogleAccess`)에 둔다. 테스트는 `tests/fakes/google.py`의 `FakeGoogle`을 `create_app(settings, google=...)`로 넣는다. 감시 등록은 `labelIds: ["INBOX"]`로 받은편지함 변경만 알린다. 7은 알림을 받을 때 `renew_watch_if_due(access, user_id)`, Gmail을 읽을 때 `get_access_token()` → `google.gmail(토큰)`을 쓴다. `TokenExpired`·`GoogleUnavailable`·`WatchFailed`는 모두 `GoogleError`다. [Claude proposal]
 - 로컬 모드(계획 2절)는 본인 Google Cloud 프로젝트의 OAuth 웹 앱과 루프백 콜백을 사용한다(설정 절차 README). 운영 OAuth 비밀값을 공유하지 않는다. `GoogleAccess.settings`로 실행 모드를 구분하며 로컬의 등록/중지는 DB 수집 상태만 바꾸고 `users.watch`·`users.stop`을 호출하지 않는다. 공용 로그인·watch 갱신·stop·Pub/Sub 인증과 토픽/구독 주소는 유지한다. 로컬에서는 Pub/Sub 알림으로 처리를 시작하지 않는다.
-- `app/services/local_gmail.py`의 `LocalGmailCollector`는 전용 로컬 앱 수명 안에서 동작한다. 살아 있는 루프백 리스너와 `LOCAL_OWNER_GOOGLE_SUB`에 일치하는 검증된 사용자만 선택하고, 본인의 `get_access_token()`·`history.list`를 30초 간격으로 호출한다. `gmail_push.collect_history()`의 기존 모든 페이지 읽기·MIME/HTML 변환·필터·유일 제약·`start_run()`을 재사용한다. 키는 6.1절 제한을 그대로 적용하고 자동 발송은 하지 않는다.
+- `LocalGmailCollector`는 살아 있는 루프백 리스너에서 30초마다 연결된 사용자를 user_id 순서로 수집한다. `SqlMailboxStore`가 User·GoogleToken·GmailWatch를 user_id로 연결해 비어 있지 않은 refresh_token_enc, local:history, active 또는 종료 오류가 아닌 error를 선택한다. Google subject·last_login_at·현재 브라우저 세션은 선정 조건이 아니다. 미연결·stopped·token_expired·history_expired·서버 Pub/Sub 행은 제외한다.
+- 서비스는 좁은 MailboxStore Protocol로 SQL을 위임하고 기존 사용자별 잠금과 `collect_history`의 MIME/필터/중복/그래프 실행을 재사용한다. 한 계정 실패 후 다음 계정을 계속 처리하며 새 큐/병렬 수집/분산 보장은 없다. 페이지·메일·각 외부 본문 읽기 전에 같은 연결 조건과 generation을 확인하고 커서/오류 갱신도 같은 SQL 조건으로 보호한다. 데이터와 후보는 user_id별이며 자동 발송은 하지 않는다.
 - 최초 연결/명시적 재로그인은 현재 historyId부터 시작한다. 프로그램만 재시작하면 개인 DB의 유효한 커서로 재개한다. 통신 실패는 커서를 보존해 다음 주기 재시도하며 history.list 404(`HistoryExpired`, `GoogleUnavailable` 하위형)는 `history_expired`로 중단한다. Google 401/403·갱신 토큰 만료/취소는 토큰을 지우고 `token_expired`로 중단하되, 403의 사용량 제한 원인(`rateLimitExceeded`·`userRateLimitExceeded`·`dailyLimitExceeded`·`quotaExceeded`)은 토큰을 보존하고 재시도한다. 로그아웃·재연결 취소·종료는 페이지/메일 사이에서 추가 처리를 막고, 앱 종료는 진행 중인 수집 스레드가 끝난 다음 DB를 닫는다. 이미 시작한 AI 호출은 6절의 기존 취소 한계를 따른다. 전체 메일함 자동 동기화·공개 터널은 없다.
 
 ## 11. 환경변수 이름 (값은 `.env`와 Render 환경변수에만 둔다)
 | 이름 | 뜻 | 쓰는 하위 작업 |
 |---|---|---|
 | `AI_RUNTIME` | `server`(기본) 또는 `local`(전용 루프백 명령에서만 허용) | local-openai-execution 1 |
-| `LOCAL_OWNER_GOOGLE_SUB` | 본인 로그인으로 확인 후 로컬 .env에 지정하는 Google sub | local-openai-execution 1 |
-| `OPENAI_API_KEY` | `local`에서 지정 소유자만 사용. 서버에서는 읽거나 대체 키로 사용하지 않음 | local-openai-execution 1 |
+| `LOCAL_OWNER_GOOGLE_SUB` | HTTPS 서버에 연결하는 app.worker.pc의 --env 파일 전용 Google sub. 앱 공통 Settings·app.local은 읽지 않음 | local-openai-execution 4 |
+| `OPENAI_API_KEY` | local 앱의 PC 환경 키 또는 개인 PC 실행기 키. 서버 앱은 읽거나 대체 키로 사용하지 않음 | local-openai-execution 1·4 |
 | `OPENAI_MODEL` | 쓸 OpenAI 모델 이름(비우면 `gpt-6-luna`) | 모든 LLM 호출 |
-| `GOOGLE_OAUTH_CLIENT_ID` | OAuth 클라이언트 ID | 6 |
+| `GOOGLE_OAUTH_CLIENT_ID` | Gmail·Calendar 공용 OAuth 클라이언트 ID(서비스별 범위·토큰 분리) | 6, #192 |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | OAuth 클라이언트 비밀번호 | 6 |
 | `GOOGLE_OAUTH_REDIRECT_URI` | OAuth 리디렉션 주소(로컬·Render 각각) | 6 |
-| `GMAIL_PUBSUB_TOPIC` | 감시 등록 토픽 전체 이름 | 6 |
+| `GMAIL_PUBSUB_TOPIC` | Gmail 감시 등록 토픽 전체 이름. Calendar만 연결할 때 필요 없음 | 6 |
 | `PUBSUB_PUSH_AUDIENCE` | 푸시 OIDC 토큰의 대상(추천 방식) | 7 |
 | `PUBSUB_PUSH_SERVICE_ACCOUNT` | 푸시 OIDC 토큰의 서비스 계정 이메일(추천 방식) | 7 |
 | `PUBSUB_PUSH_TOKEN` | 대체 방식의 비밀 토큰(대체 방식을 쓸 때만) | 7 |
@@ -1080,9 +1088,11 @@ TradeDocDraft(TypedDict, total=False):
 
 LangGraph의 interrupt는 노드를 처음부터 재실행할 수 있으므로 승인 대기 노드 앞에 비멱등 발송을 두지 않는다. 체크포인터와 장기 기억도 구분한다([공식 interrupt 문서](https://docs.langchain.com/oss/python/langgraph/interrupts), [공식 persistence 문서](https://docs.langchain.com/oss/python/langgraph/persistence)).
 
-## 18. 지식 문서 수집과 벡터 저장
+## 18. 문서함(지식 문서) 수집과 벡터 저장
 
 2026-11-16 구현. R-07·R-08의 문서 컨텍스트 기반 준비, R-11 실패/복구, R-14 화면에 해당한다. 이번 완료 지점은 업로드·전량 비전 추출·수정/확정·조항 parent-child·임베딩 저장이며 검색·LangGraph·이메일 작성/발송 연결은 포함하지 않는다. 계획은 `docs/plans/document-ingestion.md`, 실제 코드는 `app/knowledge/`·`frontend/src/knowledge/`다.
+
+화면의 문서함과 지식 문서는 같은 업로드 문서를 가리킨다. 정식 화면 주소는 `/app/documents`, 메뉴/제목은 문서함이다. 기존 `/app/knowledge`는 query/hash(선택 문서 포함)를 유지해 replace 이동한다. 기존 지식 문서 API·소유권·저장 구조를 재사용하며 작성/발급한 무역 문서의 목록 API로 대체하지 않는다. 원본 보기는 기존 인증 페이지 미리보기로 PDF/이미지·Office/TXT의 원본 또는 변환 페이지를 표시하고 이전/다음으로 탐색한다. 페이지 응답의 X-Page-Count는 AI 추출과 독립적으로 렌더러가 센 전체 페이지 수다. 추출 완료와 무관하며 원본은 다운로드할 수 있다. 미리보기 닫기/문서 전환 때 요청을 취소하고 Blob URL을 해제한다.
 
 ### 18.1. 경계와 값
 
@@ -1109,12 +1119,14 @@ LangGraph의 interrupt는 노드를 처음부터 재실행할 수 있으므로 �
 | GET `/api/knowledge/documents?offset=0` | 본인 문서 요약 20개. id·file_id·filename·size·hash·status·attempt_id·revision·오류·현재/성공 프로필 |
 | GET `…/{id}` | 요약+AI 초안 raw_pages·현재 수정문 pages·approved·warnings·published_pages·부모/자식 개수 |
 | GET `…/{id}/download` | 해시 대조한 원본 bytes, 안전한 attachment 이름 |
-| GET `…/{id}/pages/{number}` | 본인 원본을 다시 렌더링한 해당 PNG. 변환 페이지 미리보기는 서버 파일/설정에 따른 렌더 결과 |
+| GET `…/{id}/pages/{number}` | X-Page-Count 헤더로 전체 페이지 수 제공. 본인 원본을 다시 렌더링한 해당 PNG. 변환 페이지 미리보기는 서버 파일/설정에 따른 렌더 결과 |
 | GET `…/{id}/chunks?offset=0` | 마지막 성공 시도의 자식 50개와 해당 부모 원문·출처. 자식은 차원/profile_id/원문 범위를 제공하고 벡터 배열 자체는 UI로 보내지 않음 |
 | PUT `…/{id}/extraction` | `{attempt_id, revision, pages:[{number,text}], confirm}`. 전체 페이지·순서·버전을 검사. 저장만 하면 needs_review, 확정하면 queued |
 | POST `…/{id}/retry` | `{attempt_id}`. 터미널/검토 상태에서만 새 시도로 전량 재추출·임베딩 요청(202). 이전 성공 인덱스는 보존 |
 
-형식/시그니처 415, 크기 413, 빈/손상/한도·페이지 검사 422, multipart 파싱 실패 400, 오래된 revision/처리 시도·진행 중 수정/재요청은 409다. 저장소 장애/미설정은 503이다. 처리 실패는 문서의 안전한 error_code/error_stage에 남긴다. 실제 AI 오류 응답·문서 원문·키를 로그로 복사하지 않는다.
+업로드와 명시적 재처리는 원본 저장/작업 등록 전에 worker와 같은 어댑터 생성 경계에서 키 설정을 검사한다. worker는 실행 전에 다시 검사하고 실제 호출도 키를 다시 읽는다. 키 유효성 확인용 외부 요청은 없다.
+
+형식/시그니처 415, 크기 413, 빈/손상/한도·페이지 검사 422, multipart 파싱 실패 400, 오래된 revision/처리 시도·진행 중 수정/재요청은 409다. 저장소 장애/미설정은 503이다. 처리 실패는 문서의 안전한 error_code/error_stage에 남긴다. 화면은 LOCAL_KEY_REQUIRED/LOCAL_RUNTIME_REQUIRED를 설정 오류로 안내하고 원문 revision 충돌과 구분한다. 실패 상태에서 해당 시도의 이전 처리 요청 접수 안내는 숨긴다. 실제 AI 오류 응답·문서 원문·키를 로그로 복사하지 않는다.
 
 ### 18.4. 상태·원자성·부모/자식 불변식
 
@@ -1124,6 +1136,6 @@ LangGraph의 interrupt는 노드를 처음부터 재실행할 수 있으므로 �
 - knowledge_documents는 소유자·file_id·hash·상태·attempt/lease·수정 revision·AI 초안/확정문·현재/마지막 성공 프로필을 저장한다. knowledge_parents는 같은 문서/소유자/시도의 원문·순번·정규 원문/페이지 범위를 저장한다. knowledge_chunks는 parent_id·동일 범위·순번·원문·부모 안 시작/끝·vector·차원·profile_id를 저장한다.
 - 부모는 AI 요약이 아닌 확정 원문이다. 조항 경계를 우선하고 너무 긴 조항은 최대 8000자로 나눈다. 자식은 최대 1000자/겹침 150자이며 **문자 기준**이다. 자식만 임베딩하고 부모는 같은 PostgreSQL에서 읽는다. 이 크기가 최적 토큰/검색 품질이라는 주장은 하지 않는다.
 - 부모/자식의 문서·소유자·시도를 복합 외래 키로 묶고 자식 원문이 부모 범위와 같은지 검증한다. vector는 차원을 고정하지 않은 열이며 vector_dims=dimensions를 DB에서도 검사한다. 새 모델/차원은 명시적 재처리 대상이고 나중의 검색은 소유자/대상 문서/성공 시도/동일 프로필로 범위를 제한해야 한다. 이번에는 검색 인덱스/API를 만들지 않는다.
-- 기존 사용자 키/전용 로컬 제한을 재사용하고 공용 환경 키로 대체하지 않는다. local_worker의 이미지/임베딩 미지원은 명시적으로 실패한다. OpenAI 비전 요청은 store=False, 자동 SDK 재시도는 0이다. 이미 외부에 전달한 요청의 취소/exactly-once는 보장하지 않는다.
+- 기존 사용자 키/전용 로컬 제한을 재사용하고 공용 환경 키로 대체하지 않는다. local_worker의 이미지/임베딩 미지원은 명시적으로 실패한다. OpenAI 비전 요청은 store=False, 요청당 180초·SDK 자동 재시도 최대 3회(최초 포함 최대 4번 호출)다. 연결/시간 초과·408/409/429/5xx 등 SDK의 재시도 가능 오류에만 지수 백오프를 적용하며 400/401/403 등의 오류는 반복하지 않는다. 임베딩은 기존 30초·재시도 0회다. 전체 작업의 기존 1시간 임대는 늘리지 않으며 재시도로 처리 시간·과금이 늘 수 있다. 이미 외부에 전달한 요청의 취소/exactly-once는 보장하지 않는다.
 
 검증 근거는 `tests/test_knowledge.py`·`tests/test_knowledge_browser.py`다. 실제 pgvector, 두 가짜 비전/임베딩 공급자·다른 차원, PDF/Office 변환, 원문 수정·충돌·이전 결과 보존, 실제 React/FastAPI 브라우저 흐름을 확인한다. 실제 계약서/외부 API의 정확도·비용과 운영 배포 완료는 이 시험으로 주장하지 않는다.

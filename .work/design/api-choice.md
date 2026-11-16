@@ -13,14 +13,15 @@
 - 출처: [OpenAI 파일 입력](https://developers.openai.com/api/docs/guides/file-inputs), [비전의 한계](https://developers.openai.com/api/docs/guides/images-vision#limitations). API의 PDF·일반 문서 처리 차이와 작은 글씨/한국어/정확도 제한을 확인했다. 특정 공급자 채택의 근거로 바꾸지 않는다.
 
 ## LLM
-### 전용 로컬 .env 키 모드 (2026-11-12, Issue #153)
+### 전용 로컬 .env 키 모드 (2026-11-16 정리, 초기 Issue #153)
 - 요청: 개인 PC에서 본인 `.env` 키를 사용하고 공용 서버의 환경 키 사용 금지를 유지한다. `AI_RUNTIME` 기본은 `server`이며, 전용 `uv run python -m app.local`의 실제 루프백 리스너가 있는 `local` 실행에서만 환경 키를 선택한다. Render·공용 실행은 로컬 모드로 시작할 수 없다.
-- 본인 확인: Google 검증 로그인 후 로컬 `/settings`에서 본인 식별자를 확인해 `LOCAL_OWNER_GOOGLE_SUB`에 직접 지정한다. 일치하는 검증 사용자만 허용하고 소유자 미지정·다른 사용자·키 누락은 차단한다. 최초 방문 자동 등록은 없다. 로컬 모드에서는 DB 사용자 키 조회·저장·교체·삭제를 차단하고 `.env` 변경 뒤 재시작한다. 키·해시·부분 문자열을 노출하지 않는다.
-- 서버의 사용자별 암호화 DB 키 방식·명시적 가짜 백엔드 주입은 유지한다. 어느 서버 사용자 키가 없어도 환경 키로 대체하지 않는다. 모델·OpenAI API 선택은 기존과 같다. 개인 PC Gmail 수집·Render 장치 연결·큐·개인 실행 프로그램은 아직 없으며 후속 계약만 `docs/CONTRACT.md` 6절에 정했다. 실제 키·운영 설정 변경·실제 API 호출은 하지 않았다.
+- 책임 분리: 앱 인증·자료 권한은 검증된 user_id, 로컬 AI는 전용 루프백 실행과 OPENAI_API_KEY 존재로 판단한다. Google 식별자·Gmail 연결·last_login_at은 필요 없다. LOCAL_OWNER_GOOGLE_SUB는 HTTPS 서버에 연결하는 개인 PC 실행기의 명시적 파일/LocalPolicy 전용이며, 해당 소유자·장치 정책은 유지한다.
+- 로컬 Gmail은 User·GoogleToken·GmailWatch의 user_id 연결, 갱신 토큰, local:history 활성/재시도 상태로만 선정한다. 작은 SQL Store와 기존 순차 수집/중복 방지를 사용하고 공용 Pub/Sub 계정은 제외한다. 모델·외부 API 선택은 바꾸지 않는다.
+- 서버의 사용자별 암호화 DB 키 방식·명시적 가짜 백엔드 주입은 유지한다. 서버 키 오류에 환경 키 대체는 없다. 로컬 모드에서는 DB 사용자 키 저장/교체/삭제를 차단하며 .env 변경 뒤 재시작한다. 키·해시·부분 문자열은 노출하지 않는다. 실제 계정/운영 확인은 #157·#178이며 모의 시험과 구분한다.
 
 ### 사용자별 키 등록 (2026-11-12)
 - 요청: 공용 사이트에서도 각 사용자의 OpenAI 키만 사용한다. `/settings`에서 등록·교체·삭제하고 기존 `TOKEN_ENCRYPTION_KEY`로 암호화해 사용자별 DB 행에 보관한다. 메일 자동 처리·요약·성찰·4종 문서 AI 추출 모두 소유자 키를 선택한다.
-- 기본 `server` 실행에서는 `.env`의 `OPENAI_API_KEY`를 호출에 사용하지 않는다. 키가 없거나 복호화할 수 없으면 차단하며 공용 키 대체 경로는 없다. 전용 로컬 실행은 위 절의 별도 소유자 제한을 따른다. 모델 설정은 기존 `OPENAI_MODEL`을 유지한다. 저장 시 API 호출은 하지 않는다. 아래 11/11의 환경변수 키 등록 절차는 이전 기록이다.
+- 기본 `server` 실행에서는 `.env`의 `OPENAI_API_KEY`를 호출에 사용하지 않는다. 키가 없거나 복호화할 수 없으면 차단하며 공용 키 대체 경로는 없다. 전용 로컬 실행은 위 절의 루프백 실행 검증을 따른다. 모델 설정은 기존 `OPENAI_MODEL`을 유지한다. 저장 시 API 호출은 하지 않는다. 아래 11/11의 환경변수 키 등록 절차는 이전 기록이다.
 
 현재 선택: 2026-11-11 · 모든 LLM 호출을 OpenAI Responses API로 통일. 아래 후보·초기 선택·모델 변경은 당시 기록이다.
 
@@ -81,7 +82,7 @@
 |---|---|---|
 | Gmail API | 사용자별 메일 읽기, 감시 등록, 승인한 답장·견적서 첨부 발송 | 사용자별 Google OAuth 로그인 |
 | Cloud Pub/Sub | Gmail의 메일함 변경 알림을 서비스로 푸시 전달 | Gmail 감시 토픽, 푸시 구독과 수신 요청 인증 |
-| Google Calendar API | 도구 2(구글캘린더 등록)용으로 유지 | 사용자별 Google OAuth 로그인. 일정 도구 구현 때 연결 |
+| Google Calendar API | 설정의 읽기 전용 연동·캘린더 목록 접근 확인(#192) | 본인 Google subject 검증·별도 Calendar 토큰. `openid`·`email`·`calendar.readonly`만 요청하며 등록/추천·그래프 연결은 제외 |
 
 - 2026-11-09에는 LLM을 Gemini `gemini-3.8-flash`로 유지했다(이후 변경은 위 LLM 절). Gmail API·Cloud Pub/Sub를 추가하고 Calendar를 유지하는 것은 요청자가 정한 변경이다. [Request]
 - 한국천문연구원 특일 정보·기상청 단기예보·네이버 지역 검색·네이버 길찾기는 MVP에서 뺀다. 아래 '일정 도구 추천 후보'에 보관하고, 현재 키 발급·환경변수 설정 대상에서는 제외한다. [Request]
@@ -89,11 +90,13 @@
 - OAuth 게시·권한 설정과 푸시 수신 인증은 별도 Google Cloud·로그인·알림 수신 작업에서 처리한다. 이 문서 갱신으로 콘솔 설정이나 연동이 완료된 것은 아니다.
 
 ### 설정 경로
-1. Google Cloud 콘솔의 프로젝트에서 Gmail API·Cloud Pub/Sub API를 사용 설정한다. Google Calendar API는 도구 2용으로 유지한다.
+1. Google Cloud 콘솔의 프로젝트에서 Gmail API·Cloud Pub/Sub API를 사용 설정한다. Calendar 연결에는 Google Calendar API도 사용 설정하고 Data Access에 `https://www.googleapis.com/auth/calendar.readonly`를 준비한다. 기존 Gmail 범위는 유지한다. Calendar만 쓸 때 Pub/Sub는 필요 없다.
 2. Google Auth Platform → Branding·Audience·Data Access에서 앱과 필요한 권한을 설정하고, Clients에서 OAuth 웹 애플리케이션 클라이언트를 만든다. `GOOGLE_OAUTH_CLIENT_ID`·`GOOGLE_OAUTH_CLIENT_SECRET`을 보관하고, 로컬·Render 각각의 콜백 주소를 등록해 `GOOGLE_OAUTH_REDIRECT_URI`에 맞춘다. 서비스 주소는 `APP_BASE_URL`이다.
 3. Pub/Sub에서 토픽과 푸시 구독을 설정한다. Gmail 감시 등록에 쓰는 토픽 전체 이름을 `GMAIL_PUBSUB_TOPIC`에 둔다. 추천하는 OIDC 확인 방식은 `PUBSUB_PUSH_AUDIENCE`·`PUBSUB_PUSH_SERVICE_ACCOUNT`를 쓰며, 대체 비밀 토큰 방식을 택할 때만 `PUBSUB_PUSH_TOKEN`을 쓴다.
-4. 앱 설정으로 Google 토큰 암호화 키 `TOKEN_ENCRYPTION_KEY`, 로그인 세션 쿠키 서명 키 `SESSION_SECRET`, Postgres 접속 주소 `DATABASE_URL`, 성찰 기본값 `REFLECTION_ENABLED_DEFAULT`를 준비한다. 로컬에서 `DATABASE_URL`을 비우면 SQLite 파일을 쓴다. 이름·뜻은 `docs/CONTRACT.md` 11절, 값 없는 설정 틀은 `.env.example`에 있다.
+4. 앱 설정으로 Google 토큰 암호화 키 `TOKEN_ENCRYPTION_KEY`, 로그인 세션 쿠키 서명 키 `SESSION_SECRET`, Postgres 접속 주소 `DATABASE_URL`, 성찰 기본값 `REFLECTION_ENABLED_DEFAULT`를 준비한다. `DATABASE_URL`은 PostgreSQL 전용이며 비우면 시작하지 않는다. 이름·뜻은 `docs/CONTRACT.md` 11절, 값 없는 설정 틀은 `.env.example`에 있다.
 - 키와 설정값은 각자 로컬 `.env`와 Render 환경변수에만 둔다. 콘솔·계정 설정은 계획의 별도 작업에서 진행한다.
+
+Calendar 연결은 Gmail과 같은 OAuth 클라이언트·callback을 공유하지만 서비스별 state/암호화 토큰을 사용한다. Calendar 해제는 앱 토큰만 삭제하며 Gmail 해제/Google 전체 grant 철회는 양쪽 토큰에 영향을 줄 수 있어 서버에서 재검증한다. 실제 콘솔·Render 확인은 #193에 남는다.
 
 ### 출처
 - Calendar 한도·범위: https://developers.google.com/workspace/calendar/api/guides/quota , .../guides/auth
