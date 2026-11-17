@@ -15,6 +15,7 @@ from app.auth import gmail as gmail_connection
 from app.auth import calendar as calendar_connection
 from app.clients.calendar import CalendarClient
 from app.auth import router as supabase_me
+from app.catalog import router as catalog_routes
 from app.auth import session as session_routes
 from app.auth.deps import LoginRequired
 from app.auth.gmail import GmailConnectionError
@@ -165,6 +166,7 @@ def create_app(settings: Settings | None = None, google=None,
     app.include_router(calendar_connection.router)
     app.include_router(files_routes.router)
     app.include_router(knowledge_routes.router)
+    app.include_router(catalog_routes.router)
     app.include_router(worker_routes.router)
     app.include_router(trade_api.router)
     app.include_router(pi_routes.router)

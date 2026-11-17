@@ -66,6 +66,12 @@ uv run uvicorn app.main:app --reload  # 로컬 서버
 - Parent-child: 조항 경계를 우선한 부모 원문(최대 8000자)과 1000자/겹침 150자의 자식을 연결한다. 크기는 문자 기준이며 최적 검색 성능을 주장하지 않는다. 자식만 임베딩하고 부모의 원본 페이지/원문 범위·처리 버전·모델 프로필을 보존한다. 모델/차원을 바꿔도 기존 벡터가 자동 변환되지는 않으며 본인 문서를 재처리해야 한다.
 - 검증: `uv run pytest tests/test_knowledge.py tests/test_knowledge_browser.py`는 실제 pgvector·페이지 렌더링·React/FastAPI와 가짜 AI/Storage로 시험한다. `npm ci --prefix frontend`, LibreOffice, `uv run playwright install chromium`을 먼저 준비한다. 외부 AI 호출/실제 문서 일괄 적재/운영 배포/검색 품질 평가는 수행하지 않는다. API·상태/오류·저장 불변식은 [계약 18절](docs/CONTRACT.md#18-지식-문서-수집과-벡터-저장)에 있다.
 
+### 팀 공용 상품 카탈로그
+
+별도 구성한 Supabase 공용 카탈로그를 PI/PO 작성·수정과 기존 LangGraph 무역 문서 생성 도구에서 조회한다. 명시적으로 허용한 계정만 상품·원본·검색 근거를 읽는다. 정확한 SKU/모델만 단가 후보를 채우며, 색상·스위치 후보·재고 초과·매입/판매 구분 없는 가격은 확인을 요구한다. 개인 단가표와 CI/PL의 원본 가격은 유지한다.
+
+`GET /api/catalog/status`·`/search?q=...`·`/source`로 상태·검색·원본을 조회하고, 로그인 후 `POST /api/catalog/index`로 누락 임베딩을 명시적으로 생성한다(세션은 기존 `/api/session`의 CSRF 필요). 본인 앱 설정 키 또는 지원되는 로컬 키만 사용하며 기본 프로필은 기존 OpenAI `text-embedding-3-small`/1536이다. 키를 채팅·레포에 넣지 않는다. 실제 키가 없으면 벡터를 생성했다고 표시하지 않고 키워드 검색을 유지한다. [구조·API·오류 처리](docs/plans/aio3-shared-catalog.md).
+
 ### Render 같은 출처 UI 배포 — 계획 21.1 선행 작업
 
 `scripts/render-build.sh`는 레포 루트에서 `uv sync --locked`로 기존 Python 설치를 유지한 뒤, `frontend/`에서 `npm ci --include=dev` → `npm run build`를 실행하고 `dist/index.html` 생성을 확인한다. Vite 같은 개발 의존성은 `NODE_ENV=production`에서도 빌드에 필요하다. 어느 단계든 실패하면 빌드가 실패하며 서버 시작 단계로 넘어가지 않는다. UI 소스·Vite 설정·package/lockfile은 이 선행 작업에서 바꾸지 않는다.

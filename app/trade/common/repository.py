@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.db.models import CompanyBankAccount, CompanyProfile, TradeArtifact, TradeDocument, TradeDocumentVersion, TradeProposal, User, utcnow
 from app.services.locks import user_lock
+from app.catalog.service import optional_lookup
 from app.trade.common.models import DocumentContext, DocumentError
 from app.trade.common.results import artifact_view
 from app.trade.settings.repository import counterparty_profiles, trade_price_rows
@@ -34,6 +35,7 @@ class SQLDocuments:
                 "revision": row.revision, "status": row.status}
 
     def context(self, currency):
+        catalog_lookup = optional_lookup(self.database, self.user_id)
         with user_lock(self.database, self.user_id), self.database.session() as session:
             issuer = session.get(CompanyProfile, self.user_id)
             bank = session.scalar(select(CompanyBankAccount).where(
@@ -42,7 +44,8 @@ class SQLDocuments:
                 issuer={key: getattr(issuer, key) for key in ISSUER_FIELDS} if issuer else {},
                 bank={key.upper(): getattr(bank, key) for key in BANK_FIELDS} if bank else None,
                 price_rows=trade_price_rows(session, self.user_id),
-                counterparties=counterparty_profiles(session, self.user_id))
+                counterparties=counterparty_profiles(session, self.user_id),
+                catalog_lookup=catalog_lookup)
 
     def get(self, document_id):
         with user_lock(self.database, self.user_id), self.database.session() as session:
