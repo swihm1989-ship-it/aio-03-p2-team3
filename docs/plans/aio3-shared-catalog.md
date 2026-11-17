@@ -6,6 +6,7 @@
 
 - DB 원본은 `aio3_catalog_products`·`aio3_catalog_chunks`·`aio3_catalog_sources`·`aio3_catalog_imports`이며 `aio3_catalog_members`로 명시적으로 허용한다. 이 테이블은 지정한 Supabase 프로젝트에서 별도 구성되며 앱 시작 때 다른 DB에 자동 생성하지 않는다.
 - 서버가 postgres/service_role로 접속하더라도 앱 사용자 정수 ID와 `users.supabase_uid`를 멤버 UUID에 연결해 검사한다. 문서 접근 권한과 별개다. 이메일/사용자 metadata를 동적 권한 판단에 사용하지 않는다. 원본·본문·벡터는 타 사용자 개인 문서함에 복제하지 않는다.
+- 사용자 UUID 매핑과 개인 키를 직접 우회하지 못하도록 `app/catalog/security.sql`은 `users`·`user_openai_keys`의 RLS를 켠다. 기존 신뢰 서버 DB 역할은 계속 사용한다. 이 두 테이블에는 브라우저 직접 접근 정책을 추가하지 않으며 다른 기존 업무 테이블의 권한까지 변경하는 마이그레이션은 아니다.
 - 정확한 SKU/모델코드/전체 제품명이 우선이다. 한글·영문 키워드를 지원하며 실제 인덱스가 있을 때만 동일 모델의 쿼리 벡터를 비교한다. 색상·스위치 불명확 후보와 의미 검색 후보는 임의 확정하지 않는다.
 - 기존 PI/PO 작성·수정과 LangGraph의 기존 `create_trade_document` 도구 본문에 같은 조회 경계를 연결한다. 새 그래프 상태·엣지·도구 입력을 추가하지 않는다. 조회 근거는 문서의 `catalog_evidence`에 보존한다.
 - 전체 제품이 공용 컴퓨터 상품으로 정확히 확인되면 상품군은 `other`다. 재고 초과와 옵션 불명확을 보완 항목으로 남긴다. 수량은 첨부 재고표 기준이며 실시간 출고·예약을 뜻하지 않는다.

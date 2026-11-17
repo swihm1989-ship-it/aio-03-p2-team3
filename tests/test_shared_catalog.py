@@ -42,6 +42,7 @@ def catalog(database):
         $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
         """)
         connection.exec_driver_sql(Path(__file__).with_name("fixtures").joinpath("aio3_catalog.sql").read_text())
+        connection.exec_driver_sql(Path("app/catalog/security.sql").read_text())
     with database.session() as session:
         session.get(User, 1).supabase_uid = ONE
         session.add(User(id=2, supabase_uid=TWO, email="outside@example.invalid"))
@@ -100,6 +101,12 @@ def test_catalog_is_optional_when_no_catalog_was_configured(database):
 
 def test_explicit_membership_still_applies_to_privileged_server_connections(catalog):
     assert catalog.status(1)["products"] == 3
+    with catalog.database.engine.begin() as connection:
+        assert connection.exec_driver_sql("select count(*) from pg_class where oid in "
+            "('public.users'::regclass,'public.user_openai_keys'::regclass) and relrowsecurity").scalar_one() == 2
+        connection.exec_driver_sql("grant select, update on public.users to anon; set local role anon")
+        assert connection.exec_driver_sql("select count(*) from public.users").scalar_one() == 0
+        assert connection.exec_driver_sql("update public.users set email='forged@example.invalid'").rowcount == 0
     assert catalog.available(2) is False
     for operation in (lambda: catalog.search(2, "Virtual Mouse Black"),
                       lambda: catalog.pending(2), lambda: catalog.source(2)):

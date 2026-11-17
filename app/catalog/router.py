@@ -45,9 +45,9 @@ def semantic_search(body: SemanticQuery, request: Request, owner: int = Depends(
     if status["indexed"] and not any(r["retrieval_method"] == "exact_identifier" for r in matches):
         try:
             embedder = make_embedder(database, owner, request.app.state.settings)
+            matches = retrieve(repository, owner, body.q, embedder=embedder)
         except OpenAIKeyError as error:
             raise KnowledgeError(error.code, error.message, error.status_code) from None
-        matches = retrieve(repository, owner, body.q, embedder=embedder)
     return {"matches": matches}
 
 
@@ -60,9 +60,9 @@ def index(request: Request, owner: int = Depends(require_write)):
         return {**repository.status(owner), "newly_indexed": 0}
     try:
         embedder = make_embedder(database, owner, request.app.state.settings)
+        return index_catalog(repository, owner, embedder)
     except OpenAIKeyError as error:
         raise KnowledgeError(error.code, error.message, error.status_code) from None
-    return index_catalog(repository, owner, embedder)
 
 
 @router.get("/source")

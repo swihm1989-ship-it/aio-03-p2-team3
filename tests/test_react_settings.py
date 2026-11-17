@@ -156,13 +156,27 @@ def test_gmail_settings_browser_callbacks_failures_and_mobile(database_url, tmp_
         context.route("**/*", route_request)
         context.route("**/api/trade/settings", lambda route: route.fulfill(status=503,
             json={"error": {"code": "test_unavailable", "message": "가상 회사 설정 조회 실패"}}))
+        context.route("**/api/catalog/status", lambda route: route.fulfill(json={
+            "products": 3, "chunks": 3, "indexed": 0, "source_files": 1}))
+        context.route("**/api/catalog/search?*", lambda route: route.fulfill(json={"matches": [{
+            "sku": "SYN-MOUSE", "product_name": "Virtual Mouse Black",
+            "manufacturer_model_code": "SYN-MOUSE", "color": "Black", "switch_type": "",
+            "currency": "USD", "unit_price": "9.0000", "stock_qty": 30, "unit": "pcs",
+            "source": {"file": "synthetic.xlsx", "row": 4}}]}))
         page = context.new_page()
         errors = []
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.goto(base + "/app/settings")
         expect(page.get_by_text("가상 회사 설정 조회 실패", exact=True)).to_be_visible()
         nav = page.get_by_role("navigation", name="설정 항목")
-        expect(nav.get_by_role("button")).to_have_text(["회사 정보", "거래처", "판매 단가표", "구매 단가표", "은행 계좌", "로고·직인", "연동하기"])
+        expect(nav.get_by_role("button")).to_have_text(["회사 정보", "거래처", "판매 단가표", "구매 단가표", "공용 상품", "은행 계좌", "로고·직인", "연동하기"])
+        nav.get_by_role("button", name="공용 상품", exact=True).click()
+        expect(page.get_by_text("상품 3개 · AI 검색 자료 0/3개 · 원본 1개", exact=True)).to_be_visible()
+        expect(page.get_by_role("checkbox", name="의미 검색")).to_be_disabled()
+        page.get_by_label("모델코드 또는 제품명").fill("SYN-MOUSE")
+        page.get_by_role("button", name="상품 검색", exact=True).click()
+        expect(page.get_by_role("cell", name="Virtual Mouse Black SYN-MOUSE")).to_be_visible()
+        expect(page.get_by_role("cell", name="USD 9.0000", exact=True)).to_be_visible()
         nav.get_by_role("button", name="연동하기", exact=True).click()
         gmail = page.get_by_role("region", name="Gmail 연동", exact=True)
         calendar = page.get_by_role("region", name="Google 캘린더 연동", exact=True)
