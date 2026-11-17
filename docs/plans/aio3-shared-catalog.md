@@ -13,13 +13,15 @@
 
 ## 2. API와 임베딩
 
+설정 → **공용 상품**에서 상품 검색·원본 다운로드·AI 검색 자료 준비를 제공한다. 회사 설정 조회 실패와 별개로 열 수 있고, 네트워크 오류·권한 오류·키 누락은 성공으로 표시하지 않는다. 처리 응답이 유실되면 상태를 다시 읽어 실제 벡터 개수를 확인한다.
+
 모든 응답은 인증·공용 카탈로그 멤버십과 `private, no-store`를 적용한다.
 
 | 요청 | 역할 |
 |---|---|
 | `GET /api/catalog/status` | 상품·검색 본문·실제 벡터·원본 파일 개수 |
 | `GET /api/catalog/search?q=...` | 정확한 식별자/키워드 검색 |
-| `GET /api/catalog/search?q=...&semantic=true` | 본인 키로 쿼리를 임베딩해 같은 프로필 검색 |
+| `POST /api/catalog/search` + `{"q":"..."}` | 본인 키로 쿼리를 임베딩해 같은 프로필 검색. 세션 CSRF 필요 |
 | `GET /api/catalog/source` | SHA-256을 검증한 최신 원본 엑셀 |
 | `POST /api/catalog/index` | 누락 벡터의 명시적 생성. Bearer 또는 기존 세션 CSRF 필요 |
 

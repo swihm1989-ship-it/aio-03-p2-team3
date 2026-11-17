@@ -4,6 +4,7 @@ import { apiFetch, downloadFile } from "../api"
 export default function SharedCatalogSettings({ token }) {
   const [status, setStatus] = useState(null)
   const [query, setQuery] = useState("")
+  const [semantic, setSemantic] = useState(false)
   const [matches, setMatches] = useState([])
   const [error, setError] = useState(null)
   const [notice, setNotice] = useState("")
@@ -48,7 +49,9 @@ export default function SharedCatalogSettings({ token }) {
           setNotice(`${result.newly_indexed}개 상품의 AI 검색 자료를 준비했습니다.`)
         }
       } else {
-        const result = await apiFetch(`/catalog/search?q=${encodeURIComponent(query.trim())}`, { token, signal: controller.signal })
+        const path = semantic ? "/catalog/search" : `/catalog/search?q=${encodeURIComponent(query.trim())}`
+        const result = await apiFetch(path, { method: semantic ? "POST" : "GET", token,
+          body: semantic ? { q: query.trim() } : undefined, signal: controller.signal })
         if (!controller.signal.aborted) {
           setMatches(result.matches)
           setNotice(`${result.matches.length}개 후보를 찾았습니다. 색상·옵션과 거래 단가를 확인해 주세요.`)
@@ -87,6 +90,8 @@ export default function SharedCatalogSettings({ token }) {
         <label className="field"><span>모델코드 또는 제품명</span>
           <input value={query} onChange={(event) => setQuery(event.target.value)} maxLength={500} required />
         </label>
+        <label><input type="checkbox" checked={semantic} disabled={busy || !status.indexed}
+          onChange={(event) => setSemantic(event.target.checked)} /> 의미 검색</label>
         <button className="btn btn-primary" disabled={busy || !query.trim()} type="submit">상품 검색</button>
       </form>
       {matches.length > 0 && <div className="shared-catalog-table"><table>

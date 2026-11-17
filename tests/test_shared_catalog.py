@@ -199,7 +199,7 @@ def test_direct_and_revised_pi_use_shared_catalog_context(catalog):
     assert updated.document["catalog_evidence"]
 
 
-def test_authenticated_catalog_http_requires_csrf_for_index_and_handles_missing_key(catalog):
+def test_authenticated_catalog_http_requires_csrf_for_index_and_handles_missing_key(catalog, monkeypatch):
     app = create_app(Settings(database_url=str(catalog.database.engine.url), session_secret="synthetic-session"),
                      storage=FakeStorage())
     app.dependency_overrides[current_user_id] = lambda: 1
@@ -212,12 +212,36 @@ def test_authenticated_catalog_http_requires_csrf_for_index_and_handles_missing_
         download = client.get("/api/catalog/source")
         assert download.content == SOURCE
         assert client.post("/api/catalog/index").status_code == 403
+        assert client.post("/api/catalog/search", json={"q": "typing accessory"}).status_code == 403
         client.headers["X-CSRF-Token"] = client.get("/api/session").json()["csrf_token"]
         missing_key = client.post("/api/catalog/index")
         assert missing_key.status_code == 409 and missing_key.json()["error"]["code"] == "OPENAI_KEY_REQUIRED"
+        monkeypatch.setattr("app.catalog.router.make_embedder", lambda *args: FakeEmbedder())
+        indexed = client.post("/api/catalog/index")
+        assert indexed.status_code == 200 and indexed.json()["indexed"] == 3
+        semantic = client.post("/api/catalog/search", json={"q": "typing accessory"})
+        assert semantic.status_code == 200 and len(semantic.json()["matches"]) == 3
         app.dependency_overrides[current_user_id] = lambda: 2
         assert client.get("/api/catalog/status").status_code == 403
         assert client.get("/api/catalog/source").status_code == 403
+
+
+def test_existing_langgraph_trade_tool_retrieves_shared_catalog(catalog):
+    from tests.test_trade_flow import item, put_settings, run_flow, trade_email, trade_response
+
+    put_settings(catalog.database, FakeStorage())
+    quote = "Virtual Mouse Black 2 PCS"
+    terms = trade_response("PI", product_family="other", items=[item(
+        product_name="Virtual Mouse Black", capacity=None, quantity="2", paid_quantity="2",
+        free_quantity="0", unit_price=None, discount_percent="0", source=quote,
+    )], source_notes=[quote])
+    email = trade_email("Please issue PI", quote + ". Buyer: Acme Trading. FOB Busan. T/T.")
+    result, _ = run_flow(catalog.database, email, terms)
+    document = result["trade_doc_draft"]
+    assert document["catalog_evidence"][0]["candidates"][0]["sku"] == "SYN-MOUSE"
+    assert document["items"][0]["unit_price"].startswith("9.")
+    assert document["status"] == "needs_input"
+    assert any("inventory list price role is unspecified" in message for message in document["missing_fields"])
 
 
 def test_pure_ci_and_pl_never_call_shared_lookup():

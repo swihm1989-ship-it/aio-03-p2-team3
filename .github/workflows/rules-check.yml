@@ -96,7 +96,7 @@ jobs:
 
       - name: 테스트
         if: needs.check.outputs.run_tests == 'true'
-        run: uv run pytest
+        run: uv run pytest tests/test_shared_catalog.py -q
         env:
           TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
 

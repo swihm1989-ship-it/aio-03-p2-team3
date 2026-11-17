@@ -1,6 +1,7 @@
 """공용 상품의 인증된 조회·원본 다운로드·명시적 임베딩 생성."""
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import Response
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.auth.deps import current_user_id
 from app.catalog.operations import index_catalog, retrieve
@@ -25,18 +26,28 @@ def status(request: Request, owner: int = Depends(current_user_id)):
 
 
 @router.get("/search")
-def search(request: Request, q: str = Query(min_length=1, max_length=500), semantic: bool = False,
+def search(request: Request, q: str = Query(min_length=1, max_length=500),
            owner: int = Depends(current_user_id)):
+    return {"matches": SqlCatalog(request.app.state.database).search(owner, q)}
+
+
+class SemanticQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    q: str = Field(min_length=1, max_length=500)
+
+
+@router.post("/search")
+def semantic_search(body: SemanticQuery, request: Request, owner: int = Depends(require_write)):
     database = request.app.state.database
     repository = SqlCatalog(database)
     status = repository.status(owner)  # Authorize before reading keys or calling an embedding provider.
-    matches = repository.search(owner, q)
-    if semantic and status["indexed"] and not any(r["retrieval_method"] == "exact_identifier" for r in matches):
+    matches = repository.search(owner, body.q)
+    if status["indexed"] and not any(r["retrieval_method"] == "exact_identifier" for r in matches):
         try:
             embedder = make_embedder(database, owner, request.app.state.settings)
         except OpenAIKeyError as error:
             raise KnowledgeError(error.code, error.message, error.status_code) from None
-        matches = retrieve(repository, owner, q, embedder=embedder)
+        matches = retrieve(repository, owner, body.q, embedder=embedder)
     return {"matches": matches}
 
 

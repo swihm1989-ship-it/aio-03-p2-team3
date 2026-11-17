@@ -70,7 +70,7 @@ uv run uvicorn app.main:app --reload  # 로컬 서버
 
 별도 구성한 Supabase 공용 카탈로그를 PI/PO 작성·수정과 기존 LangGraph 무역 문서 생성 도구에서 조회한다. 명시적으로 허용한 계정만 상품·원본·검색 근거를 읽는다. 정확한 SKU/모델만 단가 후보를 채우며, 색상·스위치 후보·재고 초과·매입/판매 구분 없는 가격은 확인을 요구한다. 개인 단가표와 CI/PL의 원본 가격은 유지한다.
 
-`GET /api/catalog/status`·`/search?q=...`·`/source`로 상태·검색·원본을 조회하고, 로그인 후 `POST /api/catalog/index`로 누락 임베딩을 명시적으로 생성한다(세션은 기존 `/api/session`의 CSRF 필요). 본인 앱 설정 키 또는 지원되는 로컬 키만 사용하며 기본 프로필은 기존 OpenAI `text-embedding-3-small`/1536이다. 키를 채팅·레포에 넣지 않는다. 실제 키가 없으면 벡터를 생성했다고 표시하지 않고 키워드 검색을 유지한다. [구조·API·오류 처리](docs/plans/aio3-shared-catalog.md).
+설정 → **공용 상품**에서 상품 검색·원본 받기·AI 검색 자료 준비를 사용할 수 있다. `GET /api/catalog/status`·`/search?q=...`·`/source`로 상태·검색·원본을 조회하고, 로그인 후 `POST /api/catalog/index`로 누락 임베딩을 명시적으로 생성한다(세션은 기존 `/api/session`의 CSRF 필요). 본인 앱 설정 키 또는 지원되는 로컬 키만 사용하며 기본 프로필은 기존 OpenAI `text-embedding-3-small`/1536이다. 키를 채팅·레포에 넣지 않는다. 실제 키가 없으면 벡터를 생성했다고 표시하지 않고 키워드 검색을 유지한다. [구조·API·오류 처리](docs/plans/aio3-shared-catalog.md).
 
 ### Render 같은 출처 UI 배포 — 계획 21.1 선행 작업
 
