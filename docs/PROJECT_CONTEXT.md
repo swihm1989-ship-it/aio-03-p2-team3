@@ -108,7 +108,9 @@
 - `app/runlog/`가 노드·전이·도구·성찰·오류/재시도·소요 시간을 기록한다. `/runs`·`/runs/{run_id}`·`/export`는 본인 기록만 개인정보를 가려 제공한다. 실행 종료 이유와 승인 뒤 발송 상태는 구분한다. 상세: 계약 8절, `app/runlog/router.py`.
 
 ## 6. 시험·평가
-마지막 갱신: 2026-11-16 · Calendar OAuth·기존 기능 통합 회귀 검증
+마지막 갱신: 2026-11-17 · 공용 상품 카탈로그 통합 회귀 검증
+
+- AIO3 공용 카탈로그 연결의 전체 `uv run pytest`는 실제 pgvector PostgreSQL·Chromium을 사용하는 [GitHub Actions](https://github.com/swihm1989-ship-it/aio-03-p2-team3/actions/runs/44014249563)에서 **1100 passed·2 skipped**다. Windows 실행기 검사는 **44 passed·1 skipped**, 규칙 검사는 경고 0개, frontend lint/test(11개)/build도 통과했다. 카탈로그 통합 18개와 설정 화면 검사는 서버 DB 권한과 별개의 멤버십·익명 사용자 매핑 변조 차단·정확/한글/옵션 검색·원본 해시·실제 pgvector 게시·실패 원자성·유상+무상 재고·거래 단가 확인·PI 수정·기존 LangGraph 도구 실행을 확인한다. 본인 OpenAI 키를 이용한 실제 벡터 생성·실제 앱 로그인·운영 배포는 미확인이다([사용법·운영 경계](plans/aio3-shared-catalog.md)).
 
 - 최신 main `ab01eda`와 Calendar OAuth 충돌을 합쳐 서버의 Calendar 초기화·로컬 Gmail 저장소 주입과 문서함/로컬 실행 변경을 함께 유지했다. 통합 전체 pytest는 **1082 passed·2 skipped**, 프론트 lint/test(11개)/build와 규칙 검사를 통과했다.
 

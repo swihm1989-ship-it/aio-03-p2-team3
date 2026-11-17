@@ -9,7 +9,7 @@ on:
     branches: [main]
     types: [opened, synchronize, reopened]
   push:
-    branches: [main, feat/aio3-shared-catalog]
+    branches: [main]
 
 permissions:
   contents: read
