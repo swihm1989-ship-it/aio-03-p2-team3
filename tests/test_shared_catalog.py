@@ -191,16 +191,17 @@ def test_direct_and_revised_pi_use_shared_catalog_context(catalog):
     result = create_pi(command, repository=repository)
     assert result.document["catalog_evidence"]
     assert result.document["items"][0]["unit_price"].startswith("9.")
-    values = command.model_dump(mode="json")
+    values = dict(result.input)
     values["items"][0]["unit_price"] = "8.50"
+    values["items"][0]["confirm_price_override"] = True
     changed = PIInput.model_validate(values)
     updated = revise_pi(result.document_id, result.revision, changed, repository=repository)
     assert updated.document["items"][0]["unit_price"] == "8.50"
     assert updated.document["catalog_evidence"]
 
 
-def test_authenticated_catalog_http_requires_csrf_for_index_and_handles_missing_key(catalog, monkeypatch):
-    app = create_app(Settings(database_url=str(catalog.database.engine.url), session_secret="synthetic-session"),
+def test_authenticated_catalog_http_requires_csrf_for_index_and_handles_missing_key(catalog, monkeypatch, database_url):
+    app = create_app(Settings(database_url=database_url, session_secret="synthetic-session"),
                      storage=FakeStorage())
     app.dependency_overrides[current_user_id] = lambda: 1
     with TestClient(app) as client:

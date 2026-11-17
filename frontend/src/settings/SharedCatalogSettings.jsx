@@ -16,6 +16,7 @@ export default function SharedCatalogSettings({ token }) {
     const controller = new AbortController()
     setStatus(null)
     setMatches([])
+    setSemantic(false)
     setError(null)
     setNotice("")
     apiFetch("/catalog/status", { token, signal: controller.signal })
@@ -32,7 +33,7 @@ export default function SharedCatalogSettings({ token }) {
     }
   }, [token])
 
-  async function act(action) {
+  async function act(action, form = null) {
     if (operation.current) return
     const controller = new AbortController()
     operation.current = controller
@@ -40,7 +41,13 @@ export default function SharedCatalogSettings({ token }) {
     setError(null)
     setNotice("")
     try {
-      if (action === "source") {
+      if (action === "key") {
+        await apiFetch("/openai-key", { method: "PUT", token, body: new FormData(form), signal: controller.signal })
+        if (!controller.signal.aborted) {
+          form.reset()
+          setNotice("본인 키를 저장했습니다. AI 검색 자료 준비를 눌러 실제 처리를 시작하세요.")
+        }
+      } else if (action === "source") {
         await downloadFile({ download_url: "/api/catalog/source", filename: "AIO3_Inventory.xlsx" }, token, controller.signal)
       } else if (action === "index") {
         const result = await apiFetch("/catalog/index", { method: "POST", token, signal: controller.signal })
@@ -72,7 +79,6 @@ export default function SharedCatalogSettings({ token }) {
     <p className="section-note">팀 공용 상품과 첨부 재고표의 단가·수량을 조회합니다. 재고표 단가는 실제 거래의 매입·판매 단가인지 확인해야 합니다.</p>
     {error && <div role="alert" className="settings-load-error">
       <p>{error.message}</p>
-      {error.code?.startsWith("OPENAI_KEY") && <a href="/settings">본인 AI 키 설정 열기</a>}
       <button type="button" className="btn" disabled={busy} onClick={() => setReload((n) => n + 1)}>상태 다시 읽기</button>
     </div>}
     {notice && <p role="status">{notice}</p>}
@@ -86,6 +92,15 @@ export default function SharedCatalogSettings({ token }) {
         </button>
       </div>
       <p className="section-note">AI 검색 자료는 본인 OpenAI 계정으로 생성합니다. 처리 결과가 불명확하면 상태를 다시 읽어 확인하세요.</p>
+      <details className="ai-key"><summary>본인 OpenAI 키 등록·교체</summary>
+        <p className="section-note">서버 저장 방식은 본인 키를 암호화해 보관합니다. 로컬 실행은 기존 환경 파일을 사용합니다.</p>
+        <form className="settings-form" onSubmit={(event) => { event.preventDefault(); act("key", event.currentTarget) }}>
+          <label className="field"><span>개인 OpenAI API 키</span>
+            <input name="api_key" type="password" maxLength={512} autoComplete="off" required disabled={busy} />
+          </label>
+          <button className="btn" type="submit" disabled={busy}>키 등록·교체</button>
+        </form>
+      </details>
       <form className="settings-form" onSubmit={(event) => { event.preventDefault(); act("search") }}>
         <label className="field"><span>모델코드 또는 제품명</span>
           <input value={query} onChange={(event) => setQuery(event.target.value)} maxLength={500} required />
