@@ -82,9 +82,11 @@ def enrich_document(draft, lookup):
             item["price_source"] = f"Inventory list: {row['source']['file']}, row {row['source']['row']}"
             # The workbook does not identify purchase versus sale prices.
             draft["missing_fields"].append(PREFIX + f"confirm transaction price for item {position}; inventory list price role is unspecified")
-        quantity = item.get("shipped_quantity") or item.get("paid_quantity") or item.get("quantity")
         try:
-            requested = Decimal(str(quantity)) if quantity is not None else None
+            quantity = item.get("paid_quantity")
+            if quantity is None:
+                quantity = item.get("quantity")
+            requested = Decimal(str(quantity)) + Decimal(str(item.get("free_quantity") or 0)) if quantity is not None else None
         except InvalidOperation:
             requested = None  # The existing numeric validator owns invalid inputs.
         if requested is not None and requested.is_finite() and requested > row["stock_qty"]:

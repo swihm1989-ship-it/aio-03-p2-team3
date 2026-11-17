@@ -174,6 +174,9 @@ def test_enrichment_records_source_and_requires_price_confirmation(catalog):
     assert any("price role is unspecified" in s for s in draft["missing_fields"])
     assert any("stock shortage" in s for s in draft["missing_fields"])
     assert draft["catalog_evidence"][0]["candidates"][0]["source"]["row"] == 4
+    draft["items"][0].update(quantity="29", free_quantity="2")
+    enrich_document(draft, lambda q: catalog.search(1, q))
+    assert any("stock shortage" in s for s in draft["missing_fields"])
 
 
 def test_ambiguous_variant_never_selects_a_price(catalog):
