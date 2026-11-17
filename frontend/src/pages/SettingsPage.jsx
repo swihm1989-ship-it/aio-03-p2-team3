@@ -8,12 +8,14 @@ import CompanySettings from "../settings/CompanySettings"
 import CounterpartySettings from "../settings/CounterpartySettings"
 import PriceSettings from "../settings/PriceSettings"
 import IntegrationSettings from "../settings/IntegrationSettings"
+import SharedCatalogSettings from "../settings/SharedCatalogSettings"
 
 const SECTIONS = [
   ["company", "회사 정보", "문서에 표시할 발행자 정보를 입력하세요."],
   ["counterparties", "거래처", "반복해서 사용하는 거래처와 배송지를 관리합니다."],
   ["sale", "판매 단가표", "PI에 사용할 판매 단가를 관리합니다."],
   ["purchase", "구매 단가표", "PO에 사용할 매입 단가를 관리합니다."],
+  ["catalog", "공용 상품", "팀이 함께 쓰는 상품·단가·원본을 조회합니다."],
   ["banks", "은행 계좌", "문서 통화에 맞는 수취 계좌를 등록합니다."],
   ["branding", "로고·직인", "비공개 저장소에 회사 이미지를 보관합니다."],
   ["integrations", "연동하기", "앱에 로그인한 Google 계정의 서비스를 연결합니다."],
@@ -96,7 +98,8 @@ export default function SettingsPage() {
         </nav>
         <section className="card settings-panel" aria-label={title}>
           <div className="panel-head"><div><h2 className="section-title">{title}</h2><p className="section-note">{note}</p></div></div>
-          {section === "integrations" ? <IntegrationSettings callback={callback} /> : <>
+          {section === "integrations" ? <IntegrationSettings callback={callback} />
+            : section === "catalog" ? <SharedCatalogSettings token={token} /> : <>
             {read.error && <div className="settings-load-error" role="alert"><p>{read.error}</p>
               <button className="btn" type="button" onClick={() => setReload((value) => value + 1)}>다시 읽기</button>
             </div>}

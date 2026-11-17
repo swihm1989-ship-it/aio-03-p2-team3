@@ -1,7 +1,7 @@
 """HTTP/ORM/LangChain에 의존하지 않는 문서 업무의 입력·출력과 저장 인터페이스."""
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
-from typing import Annotated, Literal, Protocol
+from typing import Annotated, Callable, Literal, Protocol
 import re
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
@@ -77,6 +77,7 @@ class DocumentContext:
     bank: dict | None = None
     price_rows: list[dict] = field(default_factory=list)
     counterparties: list[dict] = field(default_factory=list)
+    catalog_lookup: Callable[[str], list[dict]] | None = field(default=None, repr=False, compare=False)
 
 
 class DocumentResult(BaseModel):

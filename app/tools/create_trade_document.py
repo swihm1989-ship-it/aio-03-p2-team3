@@ -16,6 +16,8 @@ from app.services.trade_docs import save_trade_document
 from app.tools.base import ToolResult
 from app.trade.ci.imports import apply_document_prices
 from app.trade.common.pricing import build_trade_catalog
+from app.catalog.operations import enrich_document
+from app.catalog.service import optional_lookup
 
 
 class Input(BaseModel):
@@ -47,6 +49,7 @@ def create_trade_document(user_id, thread_id, deal_terms, company=None, bank=Non
         # 없고(원본 apply_verified_eclado_prices도 마지막에 draft를 돌려주지 않는다) CI·PL 경로만
         # 같은 객체를 돌려준다. CI·PL에서 반환값을 쓰더라도 같은 draft 객체다.
         apply_document_prices(draft, build_trade_catalog(price_list or []))
+        enrich_document(draft, optional_lookup(current_database(), user_id))
         finalized = save_trade_document(
             current_database(), user_id=user_id, thread_id=thread_id, draft=draft,
             run_id=run_id, deal_terms_id=deal_terms_id)

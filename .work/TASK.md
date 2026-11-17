@@ -53,6 +53,7 @@
 - `docs/plans/react-supabase/` — React·JavaScript·Vite와 Supabase 전환 문서 모음(안내·상세 계획·단계별 새 작업 요청문). 하위 작업은 PLAN.md의 자기 절만 읽는다 [과제별]
 - `docs/plans/kekorea-port.md` — 완료한 KE KOREA 무역서류(PI/PO/CI/PL) 이식 계획 이력 [과제별]
 - `reference/kekorea/` — 완료한 이식의 원본 사본(참고 이력, 읽기 전용). 담은 것·바꾼 것·원본 테스트 실행법은 그 폴더의 `README.md` [과제별]
+- `Quotation_Program/` — 기존 KE KOREA 패치 실행 참고 파일. 현재 앱에서 import하지 않는다 [과제별]
 - `docs/CONTRACT.md` — gmail-quote-mvp 공통 계약(폴더 구조, 그래프 상태·노드·전이·한도, 도구 입출력, 필수 항목 출처, LLM 호출, DB 표, 실행 기록, 화면, Google, 환경변수). 하위 작업은 13절에서 자기가 읽을 절만 연다 [과제별]
 - `Team/README.md` — 개인 계약 에이전트 변경 사례(K01~K08), 팀용 재구현 요청문, trade 도메인 비교 [과제별]
 - `Presentation/README.md` — 개인 에이전트 개선 사례의 발표 참고 안내, 팀 구현 상태와 분리 [과제별]

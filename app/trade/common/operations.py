@@ -1,5 +1,6 @@
 """PO/PI가 함께 사용하는 가격 준비와 문서 조회. 문서별 승인 규칙은 각 업무에 둔다."""
 from copy import deepcopy
+from app.catalog.operations import enrich_document
 
 from app.trade.common.models import DocumentContext, DocumentError, DocumentSummary
 from app.trade.common.counterparties import apply_company_profiles, name_key
@@ -30,6 +31,7 @@ def prepare_priced(values, context, document_type):
             item.setdefault("price_source", "User-confirmed transaction-specific override" if override else "Entered document value")
     synchronize_quantities(draft)
     apply_verified_catalog_prices(draft, build_trade_catalog(context.price_rows))
+    enrich_document(draft, context.catalog_lookup)
     return calculate(draft)
 
 
@@ -51,7 +53,8 @@ def revision_context(previous, context, currency):
     if previous.get("currency") == currency:
         bank = {**(bank or {}), **{key: value for key, value in (previous.get("bank") or {}).items()
                                  if value not in (None, "")}} or None
-    return DocumentContext(issuer=issuer, bank=bank, price_rows=context.price_rows, counterparties=context.counterparties)
+    return DocumentContext(issuer=issuer, bank=bank, price_rows=context.price_rows,
+                           counterparties=context.counterparties, catalog_lookup=context.catalog_lookup)
 
 
 def check_revision(previous, revision):
